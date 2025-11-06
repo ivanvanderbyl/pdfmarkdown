@@ -75,14 +75,3 @@ Account no 12-3602-0286599-04
 Statement no 1  
 Page no 2 of 2
   
-|                          | Account no 12-3602-0286599-04        |
-| ------------------------ | ------------------------------------ |
-|                          | Statement no 1                       |
-|                          | Page no 2 of 2                       |
-| Bill payment authorities |                                      |
-| Payable to               | Authority Last Amount $ Last Payment |
-| Armstrong Auckland       | 01 New authority                     |
-| Remarkable Vets          | 02 New authority                     |
-| Pinnacle Builders QT     | 03 New authority                     |
-
-  
