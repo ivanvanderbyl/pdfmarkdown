@@ -5,35 +5,62 @@ import (
 	"sort"
 )
 
-// buildParagraphs groups words into lines and paragraphs.
+// buildParagraphs groups words into lines and paragraphs with rotation and column awareness.
 func buildParagraphs(words []EnrichedWord, pageWidth float64, config Config) []Paragraph {
 	if len(words) == 0 {
 		return nil
 	}
 
-	// Sort words by Y position (top to bottom), then X position (left to right)
-	sortedWords := make([]EnrichedWord, len(words))
-	copy(sortedWords, words)
-	sort.Slice(sortedWords, func(i, j int) bool {
-		// Use center Y for better line grouping
-		yDiff := math.Abs(sortedWords[i].Box.CenterY() - sortedWords[j].Box.CenterY())
-		if yDiff < 3 { // Same line threshold
-			return sortedWords[i].Box.X0 < sortedWords[j].Box.X0
+	// Detect text rotation and group into blocks
+	textBlocks := detectTextRotation(words)
+
+	// If no rotation detected, create single block with all words
+	if len(textBlocks) == 0 {
+		// Sort words by baseline (Y position), then X position
+		sortedWords := make([]EnrichedWord, len(words))
+		copy(sortedWords, words)
+		sort.Slice(sortedWords, func(i, j int) bool {
+			// Use baseline for better line grouping
+			baselineDiff := math.Abs(sortedWords[i].Baseline - sortedWords[j].Baseline)
+			if baselineDiff < 3 { // Same line threshold
+				return sortedWords[i].Box.X0 < sortedWords[j].Box.X0
+			}
+			return sortedWords[i].Baseline < sortedWords[j].Baseline
+		})
+
+		lines := groupWordsIntoLinesBaseline(sortedWords)
+
+		textBlocks = []TextBlock{
+			{
+				Words:            sortedWords,
+				Lines:            lines,
+				Rotation:         0,
+				ReadingDirection: "ltr",
+			},
 		}
-		return sortedWords[i].Box.CenterY() < sortedWords[j].Box.CenterY()
-	})
-
-	// Group words into lines
-	lines := groupWordsIntoLines(sortedWords)
-
-	// Merge words that are too close together within each line
-	// This handles PDFs with inconsistent spacing (e.g., "T his" -> "This")
-	for i := range lines {
-		lines[i].Words = mergeCloseWords(lines[i].Words)
 	}
 
-	// Group lines into paragraphs
-	paragraphs := groupLinesIntoParagraphs(lines, pageWidth)
+	// Merge words that are too close together within each line
+	for bi := range textBlocks {
+		for li := range textBlocks[bi].Lines {
+			textBlocks[bi].Lines[li].Words = mergeCloseWords(textBlocks[bi].Lines[li].Words)
+		}
+	}
+
+	// Collect all lines from all blocks
+	var allLines []Line
+	for _, block := range textBlocks {
+		allLines = append(allLines, block.Lines...)
+	}
+
+	// Group lines into paragraphs with adaptive spacing
+	paragraphs := groupLinesIntoParagraphsAdaptive(allLines, pageWidth)
+
+	// Detect columns for reading order
+	columns := detectColumns(words, pageWidth)
+
+	// Determine reading order with column awareness
+	paragraphs = determineReadingOrder(paragraphs, columns)
 
 	// Detect heading levels
 	detectHeadings(paragraphs, config)
@@ -100,6 +127,173 @@ func groupWordsIntoLines(words []EnrichedWord) []Line {
 	}
 
 	return lines
+}
+
+// groupWordsIntoLinesBaseline groups words into lines using baseline-aware algorithm
+func groupWordsIntoLinesBaseline(words []EnrichedWord) []Line {
+	if len(words) == 0 {
+		return nil
+	}
+
+	var lines []Line
+	var currentLine []EnrichedWord
+	var lineBox Rect
+	var baseline float64
+	var xHeight float64
+
+	for i, word := range words {
+		if len(currentLine) == 0 {
+			// Start new line
+			currentLine = []EnrichedWord{word}
+			lineBox = word.Box
+			baseline = word.Baseline
+			xHeight = word.XHeight
+		} else {
+			// Check if word belongs to current line using baseline and x-height
+			baselineDiff := math.Abs(word.Baseline - baseline)
+			threshold := 0.4 * xHeight // Adaptive threshold based on x-height
+
+			if threshold == 0 {
+				threshold = 3.0 // Fallback to fixed threshold
+			}
+
+			if baselineDiff < threshold {
+				// Add to current line
+				currentLine = append(currentLine, word)
+				lineBox.X0 = math.Min(lineBox.X0, word.Box.X0)
+				lineBox.Y0 = math.Min(lineBox.Y0, word.Box.Y0)
+				lineBox.X1 = math.Max(lineBox.X1, word.Box.X1)
+				lineBox.Y1 = math.Max(lineBox.Y1, word.Box.Y1)
+				// Update baseline to weighted average
+				baseline = (baseline*float64(len(currentLine)-1) + word.Baseline) / float64(len(currentLine))
+			} else {
+				// End current line, start new one
+				lines = append(lines, Line{
+					Words:    currentLine,
+					Box:      lineBox,
+					Baseline: baseline,
+				})
+				currentLine = []EnrichedWord{word}
+				lineBox = word.Box
+				baseline = word.Baseline
+				xHeight = word.XHeight
+			}
+		}
+
+		// End of text
+		if i == len(words)-1 && len(currentLine) > 0 {
+			lines = append(lines, Line{
+				Words:    currentLine,
+				Box:      lineBox,
+				Baseline: baseline,
+			})
+		}
+	}
+
+	return lines
+}
+
+// groupLinesIntoParagraphsAdaptive groups lines into paragraphs using adaptive spacing
+func groupLinesIntoParagraphsAdaptive(lines []Line, pageWidth float64) []Paragraph {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	// Calculate dynamic threshold based on line spacing distribution
+	threshold := calculateDynamicThreshold(lines)
+
+	var paragraphs []Paragraph
+	var currentPara []Line
+	var paraBox Rect
+	var prevLineBottom float64
+
+	for i, line := range lines {
+		if len(currentPara) == 0 {
+			// Start new paragraph
+			currentPara = []Line{line}
+			paraBox = line.Box
+			prevLineBottom = line.Box.Y1
+		} else {
+			// Check if line belongs to current paragraph
+			lineGap := line.Box.Y0 - prevLineBottom
+			avgFontSize := getAverageFontSize(currentPara)
+			currentLineFontSize := getLineFontSize(line)
+
+			// Check for significant font size change
+			fontSizeRatio := currentLineFontSize / avgFontSize
+			significantFontChange := fontSizeRatio < 0.8 || fontSizeRatio > 1.2
+
+			// Use adaptive threshold
+			normalizedGap := lineGap / avgFontSize
+
+			if normalizedGap > threshold || significantFontChange {
+				// End current paragraph, start new one
+				paragraphs = append(paragraphs, Paragraph{
+					Lines:     currentPara,
+					Box:       paraBox,
+					Alignment: detectAlignment(currentPara, pageWidth),
+					Indent:    currentPara[0].Box.X0,
+				})
+				currentPara = []Line{line}
+				paraBox = line.Box
+			} else {
+				// Add to current paragraph
+				currentPara = append(currentPara, line)
+				paraBox.Y1 = line.Box.Y1
+				paraBox.X0 = math.Min(paraBox.X0, line.Box.X0)
+				paraBox.X1 = math.Max(paraBox.X1, line.Box.X1)
+			}
+			prevLineBottom = line.Box.Y1
+		}
+
+		// End of text
+		if i == len(lines)-1 && len(currentPara) > 0 {
+			paragraphs = append(paragraphs, Paragraph{
+				Lines:     currentPara,
+				Box:       paraBox,
+				Alignment: detectAlignment(currentPara, pageWidth),
+				Indent:    currentPara[0].Box.X0,
+			})
+		}
+	}
+
+	return paragraphs
+}
+
+// calculateDynamicThreshold calculates adaptive paragraph spacing threshold
+func calculateDynamicThreshold(lines []Line) float64 {
+	if len(lines) < 3 {
+		return 0.9 // Fallback to default
+	}
+
+	// Calculate all line gaps and font sizes
+	var gaps []float64
+	var fontSizes []float64
+
+	for i := 0; i < len(lines)-1; i++ {
+		gap := lines[i+1].Box.Y0 - lines[i].Box.Y1
+		gaps = append(gaps, gap)
+		fontSizes = append(fontSizes, getLineFontSize(lines[i]))
+	}
+
+	if len(gaps) == 0 {
+		return 0.9
+	}
+
+	// Calculate median gap and standard deviation
+	medianGap := calculateMedian(gaps)
+	stdDev := calculateStdDev(gaps)
+	medianFontSize := calculateMedian(fontSizes)
+
+	// Paragraph break threshold: median + 1.5 * stdDev, normalized by font size
+	if medianFontSize == 0 {
+		medianFontSize = 12.0
+	}
+
+	threshold := (medianGap + 1.5*stdDev) / medianFontSize
+
+	// Clamp to reasonable bounds (0.6x to 1.5x font size)
+	return clamp(threshold, 0.6, 1.5)
 }
 
 // groupLinesIntoParagraphs groups lines into paragraphs based on spacing and alignment.

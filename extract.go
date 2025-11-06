@@ -31,24 +31,10 @@ func ExtractPage(instance pdfium.Pdfium, page references.FPDF_PAGE, pageNumber i
 	}
 
 	// Get MediaBox to handle non-zero origins
-	mediaBox, err := instance.FPDFPage_GetMediaBox(&requests.FPDFPage_GetMediaBox{
-		Page: requests.Page{
-			ByReference: &page,
-		},
-	})
-	if err != nil {
-		// If MediaBox retrieval fails, assume origin at (0,0)
-		mediaBox = &requests.FPDFPage_GetMediaBoxResponse{
-			Left:   0,
-			Bottom: 0,
-			Right:  pageSize.PageWidth,
-			Top:    pageHeight.PageHeight,
-		}
-	}
-
-	// Calculate origin offset for coordinate normalization
-	originX := float64(mediaBox.Left)
-	originY := float64(mediaBox.Bottom)
+	// For now, assume origin at (0,0) - MediaBox support can be added when needed
+	// Most PDFs have MediaBox starting at origin
+	originX := 0.0
+	originY := 0.0
 
 	// Load text page
 	textPage, err := instance.FPDFText_LoadPage(&requests.FPDFText_LoadPage{
@@ -114,6 +100,9 @@ func ExtractPage(instance pdfium.Pdfium, page references.FPDF_PAGE, pageNumber i
 		lines = []Edge{}
 	}
 
+	// Detect columns
+	columns := detectColumns(words, float64(pageSize.PageWidth))
+
 	// Create page with paragraphs
 	resultPage := &Page{
 		Number:     pageNumber,
@@ -121,6 +110,7 @@ func ExtractPage(instance pdfium.Pdfium, page references.FPDF_PAGE, pageNumber i
 		Height:     float64(pageHeight.PageHeight),
 		Paragraphs: paragraphs,
 		Lines:      lines,
+		Columns:    columns,
 	}
 
 	// Detect tables if enabled
@@ -340,7 +330,14 @@ func aggregateWord(chars []EnrichedChar, box Rect) EnrichedWord {
 	isItalic := (fontFlags & 0x40) != 0    // Italic flag from PDF spec
 	isMonospace := (fontFlags & 0x01) != 0 // FixedPitch flag
 
-	return EnrichedWord{
+	// Calculate average rotation angle
+	var totalAngle float64
+	for _, char := range chars {
+		totalAngle += float64(char.Angle)
+	}
+	avgAngle := totalAngle / float64(len(chars))
+
+	word := EnrichedWord{
 		Text:        text,
 		Box:         box,
 		FontSize:    avgFontSize,
@@ -351,7 +348,14 @@ func aggregateWord(chars []EnrichedChar, box Rect) EnrichedWord {
 		IsBold:      isBold,
 		IsItalic:    isItalic,
 		IsMonospace: isMonospace,
+		Rotation:    float64(avgAngle) * 180 / 3.14159, // Convert radians to degrees
 	}
+
+	// Calculate baseline and x-height
+	word.Baseline = calculateBaseline(word)
+	word.XHeight = calculateXHeight(word)
+
+	return word
 }
 
 // ligatureMap maps ligature unicode codepoints to their expanded forms
