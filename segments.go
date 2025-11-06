@@ -3,6 +3,7 @@ package pdfmarkdown
 import (
 	"math"
 	"sort"
+	"strings"
 )
 
 // Segment represents a group of horizontally adjacent content elements
@@ -256,18 +257,127 @@ func buildTableAreas(taggedLines []TaggedLine) []TableArea {
 		} else {
 			// Text line ends current table area
 			if len(currentArea) > 0 {
-				areas = append(areas, createTableArea(currentArea))
+				area := createTableArea(currentArea)
+				// Validate before adding
+				if isValidTableArea(area) {
+					areas = append(areas, area)
+				}
 				currentArea = nil
 			}
 		}
 
 		// Handle end of lines
 		if i == len(taggedLines)-1 && len(currentArea) > 0 {
-			areas = append(areas, createTableArea(currentArea))
+			area := createTableArea(currentArea)
+			if isValidTableArea(area) {
+				areas = append(areas, area)
+			}
 		}
 	}
 
 	return areas
+}
+
+// isValidTableArea validates whether a table area is likely a real table
+// Implements validation rules to reduce false positives
+func isValidTableArea(area TableArea) bool {
+	// Must have at least 3 lines for a valid table (header + at least 2 data rows)
+	if len(area.Lines) < 3 {
+		return false
+	}
+
+	// Count how many lines are actually tagged as TableLine
+	tableLineCount := 0
+	for _, line := range area.Lines {
+		if line.Type == TableLine {
+			tableLineCount++
+		}
+	}
+
+	// Must have at least 3 table lines (not just unknown lines)
+	if tableLineCount < 3 {
+		return false
+	}
+
+	// Check segment consistency across lines
+	// Real tables have consistent segment patterns (similar number of columns)
+	segmentCounts := make(map[int]int)
+	var tableLines []TaggedLine
+
+	for _, line := range area.Lines {
+		if line.Type == TableLine {
+			segmentCounts[len(line.Segments)]++
+			tableLines = append(tableLines, line)
+		}
+	}
+
+	// If segment counts are highly variable, likely not a table
+	// Find most common segment count
+	var maxCount, maxSegments int
+	for segments, count := range segmentCounts {
+		if count > maxCount {
+			maxCount = count
+			maxSegments = segments
+		}
+	}
+
+	// At least 60% of table lines should have the same number of segments
+	if float64(maxCount)/float64(tableLineCount) < 0.6 {
+		return false
+	}
+
+	// Must have at least 2 segments (columns) for a table
+	if maxSegments < 2 {
+		return false
+	}
+
+	// Check vertical alignment of segments
+	// Real tables have segments that align vertically across rows
+	if !hasVerticalAlignment(tableLines, maxSegments) {
+		return false
+	}
+
+	return true
+}
+
+// hasVerticalAlignment checks if segments align vertically across rows
+func hasVerticalAlignment(lines []TaggedLine, expectedSegments int) bool {
+	if len(lines) < 2 {
+		return true
+	}
+
+	// For each column position, collect segment X positions
+	columnPositions := make([][]float64, expectedSegments)
+
+	for _, line := range lines {
+		// Only check lines with expected segment count
+		if len(line.Segments) != expectedSegments {
+			continue
+		}
+
+		for i, seg := range line.Segments {
+			if i < expectedSegments {
+				columnPositions[i] = append(columnPositions[i], seg.Box.X0)
+			}
+		}
+	}
+
+	// Check if positions are consistent (low standard deviation)
+	for _, positions := range columnPositions {
+		if len(positions) < 2 {
+			continue
+		}
+
+		stdDev := calculateStdDev(positions)
+		avgX := average(positions)
+
+		// If standard deviation is > 20% of average position, not aligned
+		if stdDev > avgX*0.2 && stdDev > 20 {
+			return false
+		}
+	}
+
+	return true
 }
 
 // createTableArea creates a table area from tagged lines
@@ -751,11 +861,55 @@ func DetectTablesSegmentBased(page *Page, thresholds AdaptiveThresholds) []Table
 		// Convert to Table type
 		if len(cellGrid) > 0 && len(cellGrid[0]) > 0 {
 			table := convertCellGridToTable(cellGrid, area.Box)
-			tables = append(tables, table)
+
+			// Final validation: ensure table meets minimum requirements
+			if isValidTable(table) {
+				tables = append(tables, table)
+			}
 		}
 	}
 
 	return tables
+}
+
+// isValidTable performs final validation on extracted table
+func isValidTable(table Table) bool {
+	// Must have at least 4 rows and 2 columns (header + 3 data rows minimum)
+	// This reduces false positives from formatted text
+	if table.NumRows < 4 || table.NumCols < 2 {
+		return false
+	}
+
+	// Count non-empty cells
+	nonEmptyCells := 0
+	totalCells := 0
+
+	for _, row := range table.Rows {
+		for _, cell := range row.Cells {
+			totalCells++
+			if strings.TrimSpace(cell.Content) != "" {
+				nonEmptyCells++
+			}
+		}
+	}
+
+	// At least 40% of cells must have content (stricter than 30%)
+	if totalCells > 0 && float64(nonEmptyCells)/float64(totalCells) < 0.4 {
+		return false
+	}
+
+	// Check for consistent column count across rows
+	if len(table.Rows) > 0 {
+		expectedCols := len(table.Rows[0].Cells)
+		for _, row := range table.Rows {
+			if len(row.Cells) != expectedCols {
+				// Inconsistent column count suggests malformed table
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // convertCellGridToTable converts cell grid to Table structure

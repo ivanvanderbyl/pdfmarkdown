@@ -274,18 +274,40 @@ func TestCalculateAdaptiveThresholds(t *testing.T) {
 
 // TestBuildTableAreas tests table area grouping
 func TestBuildTableAreas(t *testing.T) {
+	// Create tagged lines with enough TableLines to pass validation
 	taggedLines := []TaggedLine{
 		{Type: TextLine, Line: Line{Box: Rect{Y0: 0, Y1: 10}}},
-		{Type: TableLine, Line: Line{Box: Rect{Y0: 15, Y1: 25}}},
-		{Type: TableLine, Line: Line{Box: Rect{Y0: 30, Y1: 40}}},
+		{
+			Type: TableLine,
+			Line: Line{Box: Rect{Y0: 15, Y1: 25}},
+			Segments: []Segment{
+				{Box: Rect{X0: 10, Y0: 15, X1: 100, Y1: 25}},
+				{Box: Rect{X0: 200, Y0: 15, X1: 290, Y1: 25}},
+			},
+		},
+		{
+			Type: TableLine,
+			Line: Line{Box: Rect{Y0: 30, Y1: 40}},
+			Segments: []Segment{
+				{Box: Rect{X0: 10, Y0: 30, X1: 100, Y1: 40}},
+				{Box: Rect{X0: 200, Y0: 30, X1: 290, Y1: 40}},
+			},
+		},
 		{Type: UnknownLine, Line: Line{Box: Rect{Y0: 45, Y1: 55}}},
-		{Type: TableLine, Line: Line{Box: Rect{Y0: 60, Y1: 70}}},
+		{
+			Type: TableLine,
+			Line: Line{Box: Rect{Y0: 60, Y1: 70}},
+			Segments: []Segment{
+				{Box: Rect{X0: 10, Y0: 60, X1: 100, Y1: 70}},
+				{Box: Rect{X0: 200, Y0: 60, X1: 290, Y1: 70}},
+			},
+		},
 		{Type: TextLine, Line: Line{Box: Rect{Y0: 75, Y1: 85}}},
 	}
 
 	areas := buildTableAreas(taggedLines)
 
-	// Should create 1 table area (lines 1-4: TbL, TbL, UnL, TbL)
+	// Should create 1 table area (3 TbL + 1 UnL with consistent segments)
 	if len(areas) != 1 {
 		t.Errorf("Expected 1 table area, got %d", len(areas))
 	}

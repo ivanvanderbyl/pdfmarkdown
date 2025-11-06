@@ -1,87 +1,105 @@
 package pdfmarkdown
 
 import (
-	"fmt"
+	"bytes"
 	"strings"
+
+	"github.com/ivanvanderbyl/markdown"
 )
 
 // ToMarkdown converts a document to markdown format.
 func (d *Document) ToMarkdown(config Config) string {
-	var sb strings.Builder
+	var buf bytes.Buffer
+	md := markdown.NewMarkdown(&buf)
 
 	for i, page := range d.Pages {
 		if i > 0 && config.IncludePageBreaks {
-			sb.WriteString("\n\n---\n\n") // Page break
+			md.HorizontalRule().LF()
 		}
 
-		for j, para := range page.Paragraphs {
-			// Add paragraph separator
-			if j > 0 {
-				sb.WriteString("\n\n")
-			}
-
-			// Convert paragraph to markdown
-			paraText := convertParagraphToMarkdown(para)
-			sb.WriteString(paraText)
+		for _, para := range page.Paragraphs {
+			convertParagraphToMarkdown(md, para)
+			md.LF()
 		}
 
 		// Add tables at the end of the page content
 		if config.DetectTables && len(page.Tables) > 0 {
 			for _, table := range page.Tables {
-				if len(page.Paragraphs) > 0 || len(page.Tables) > 1 {
-					sb.WriteString("\n\n")
-				}
-				tableText := convertTableToMarkdown(table)
-				sb.WriteString(tableText)
+				convertTableToMarkdown(md, table)
+				md.LF()
 			}
 		}
 	}
 
-	return sb.String()
+	if err := md.Build(); err != nil {
+		// If there's an error building the markdown, fall back to empty string
+		return ""
+	}
+
+	return buf.String()
 }
 
-// convertParagraphToMarkdown converts a single paragraph to markdown.
-func convertParagraphToMarkdown(para Paragraph) string {
+// convertParagraphToMarkdown converts a single paragraph to markdown using the builder.
+func convertParagraphToMarkdown(md *markdown.Markdown, para Paragraph) {
 	if len(para.Lines) == 0 {
-		return ""
+		return
 	}
 
 	// Handle headings
 	if para.IsHeading {
-		prefix := strings.Repeat("#", para.HeadingLevel)
 		text := strings.TrimRight(para.Text(), " \t")
-		return fmt.Sprintf("%s %s", prefix, text)
+		switch para.HeadingLevel {
+		case 1:
+			md.H1(text)
+		case 2:
+			md.H2(text)
+		case 3:
+			md.H3(text)
+		case 4:
+			md.H4(text)
+		case 5:
+			md.H5(text)
+		case 6:
+			md.H6(text)
+		default:
+			md.H1(text)
+		}
+		return
 	}
 
 	// Handle code blocks
 	if para.IsCode {
-		lines := strings.Split(para.Text(), "\n")
-		var sb strings.Builder
-		sb.WriteString("```\n")
-		for _, line := range lines {
-			// Trim trailing whitespace from code lines
-			sb.WriteString(strings.TrimRight(line, " \t"))
-			sb.WriteString("\n")
+		text := para.Text()
+		// Trim trailing whitespace from each line
+		lines := strings.Split(text, "\n")
+		for i, line := range lines {
+			lines[i] = strings.TrimRight(line, " \t")
 		}
-		sb.WriteString("```")
-		return sb.String()
+		text = strings.Join(lines, "\n")
+		md.CodeBlocks(markdown.SyntaxHighlightNone, text)
+		return
 	}
 
 	// Handle lists
 	if para.IsList {
 		text := strings.TrimRight(para.Text(), " \t")
-		// Ensure proper list formatting
-		if !strings.HasPrefix(text, "* ") &&
-			!strings.HasPrefix(text, "- ") &&
-			!strings.HasPrefix(text, "+ ") {
-			// If it starts with a number, keep it, otherwise add bullet
-			if len(text) > 0 && (text[0] >= '0' && text[0] <= '9') {
-				// Numbered list - keep as is
-				return text
+		// Check if it's a numbered list
+		if len(text) > 0 && (text[0] >= '0' && text[0] <= '9') {
+			// Extract the list item text (after the number and period)
+			parts := strings.SplitN(text, ".", 2)
+			if len(parts) == 2 {
+				md.OrderedList(strings.TrimSpace(parts[1]))
+			} else {
+				md.OrderedList(text)
 			}
-			return "* " + text
+		} else {
+			// Bullet list - remove any existing bullet prefix
+			text = strings.TrimPrefix(text, "* ")
+			text = strings.TrimPrefix(text, "- ")
+			text = strings.TrimPrefix(text, "+ ")
+			md.BulletList(text)
 		}
-		return text
+		return
 	}
 
 	// Handle regular paragraphs with inline formatting
@@ -89,140 +107,116 @@ func convertParagraphToMarkdown(para Paragraph) string {
 	for i, line := range para.Lines {
 		if i > 0 {
 			// Preserve line breaks within paragraphs using Markdown hard line break
-			// This is important for structured content like key-value pairs,
-			// lists, and tabular data that span multiple lines
 			sb.WriteString("  \n")
 		}
 
-		// Build the line content
-		var lineSb strings.Builder
+		// Build the line content with inline formatting
 		for j, word := range line.Words {
 			if j > 0 {
-				lineSb.WriteString(" ")
+				sb.WriteString(" ")
 			}
-
 			// Apply inline formatting
 			formattedWord := applyInlineFormatting(word)
-			lineSb.WriteString(formattedWord)
+			sb.WriteString(formattedWord)
 		}
-
-		// Trim trailing whitespace from the line before adding to paragraph
-		lineText := strings.TrimRight(lineSb.String(), " \t")
-		sb.WriteString(lineText)
 	}
 
-	return sb.String()
+	// Trim trailing whitespace
+	text := strings.TrimRight(sb.String(), " \t")
+	if text != "" {
+		md.PlainText(text)
+	}
 }
 
 // applyInlineFormatting applies markdown formatting to a word based on its style.
 func applyInlineFormatting(word EnrichedWord) string {
 	text := word.Text
 
-	// Apply bold
+	// Apply bold and italic
 	if word.IsBold && word.IsItalic {
-		return fmt.Sprintf("***%s***", text)
+		return markdown.BoldItalic(text)
 	}
 
+	// Apply bold
 	if word.IsBold {
-		return fmt.Sprintf("**%s**", text)
+		return markdown.Bold(text)
 	}
 
 	// Apply italic
 	if word.IsItalic {
-		return fmt.Sprintf("*%s*", text)
+		return markdown.Italic(text)
 	}
 
 	// Apply code (monospace)
 	if word.IsMonospace {
-		return fmt.Sprintf("`%s`", text)
+		return markdown.Code(text)
 	}
 
 	return text
 }
 
-// convertTableToMarkdown converts a table to markdown format.
-func convertTableToMarkdown(table Table) string {
+// convertTableToMarkdown converts a table to markdown format using the builder.
+func convertTableToMarkdown(md *markdown.Markdown, table Table) {
 	if len(table.Rows) == 0 {
-		return ""
+		return
 	}
 
-	var sb strings.Builder
+	// Convert table rows to string slices for the markdown builder
+	var header []string
+	var rows [][]string
 
-	// Calculate column widths based on content
-	colWidths := make([]int, table.NumCols)
-	for _, row := range table.Rows {
-		for colIdx, cell := range row.Cells {
-			if colIdx < len(colWidths) {
-				contentLen := len(cell.Content)
-				if contentLen > colWidths[colIdx] {
-					colWidths[colIdx] = contentLen
-				}
-			}
-		}
-	}
-
-	// Ensure minimum width of 3 for each column
-	for i := range colWidths {
-		if colWidths[i] < 3 {
-			colWidths[i] = 3
-		}
-	}
-
-	// Write rows
 	for rowIdx, row := range table.Rows {
-		// Write cell content
-		sb.WriteString("|")
+		cells := make([]string, table.NumCols)
 		for colIdx := 0; colIdx < table.NumCols; colIdx++ {
-			content := ""
 			if colIdx < len(row.Cells) {
-				content = strings.ReplaceAll(row.Cells[colIdx].Content, "\n", " ")
+				// Replace newlines with spaces in cell content
+				cells[colIdx] = strings.ReplaceAll(row.Cells[colIdx].Content, "\n", " ")
+			} else {
+				cells[colIdx] = ""
 			}
-			// Pad content to column width
-			padding := colWidths[colIdx] - len(content)
-			sb.WriteString(" ")
-			sb.WriteString(content)
-			sb.WriteString(strings.Repeat(" ", padding))
-			sb.WriteString(" |")
 		}
-		sb.WriteString("\n")
 
-		// Add separator row after first row (header)
 		if rowIdx == 0 {
-			sb.WriteString("|")
-			for colIdx := 0; colIdx < table.NumCols; colIdx++ {
-				sb.WriteString(strings.Repeat("-", colWidths[colIdx]+2))
-				sb.WriteString("|")
-			}
-			sb.WriteString("\n")
+			// First row is the header
+			header = cells
+		} else {
+			rows = append(rows, cells)
 		}
 	}
 
-	return sb.String()
+	// If we only have a header and no data rows, still create a valid table
+	if len(rows) == 0 && len(header) > 0 {
+		rows = [][]string{make([]string, len(header))}
+	}
+
+	md.Table(markdown.TableSet{
+		Header: header,
+		Rows:   rows,
+	})
 }
 
 // PageToMarkdown converts a single page to markdown.
 func (p *Page) ToMarkdown() string {
-	var sb strings.Builder
+	var buf bytes.Buffer
+	md := markdown.NewMarkdown(&buf)
 
-	for i, para := range p.Paragraphs {
-		if i > 0 {
-			sb.WriteString("\n\n")
-		}
-
-		paraText := convertParagraphToMarkdown(para)
-		sb.WriteString(paraText)
+	for _, para := range p.Paragraphs {
+		convertParagraphToMarkdown(md, para)
+		md.LF()
 	}
 
 	// Add tables at the end of the page content
 	if len(p.Tables) > 0 {
 		for _, table := range p.Tables {
-			if len(p.Paragraphs) > 0 || len(p.Tables) > 1 {
-				sb.WriteString("\n\n")
-			}
-			tableText := convertTableToMarkdown(table)
-			sb.WriteString(tableText)
+			convertTableToMarkdown(md, table)
+			md.LF()
 		}
 	}
 
-	return sb.String()
+	if err := md.Build(); err != nil {
+		// If there's an error building the markdown, fall back to empty string
+		return ""
+	}
+
+	return buf.String()
 }

@@ -40,7 +40,7 @@ func DefaultConfig() Config {
 		MinHeadingFontSize:     1.15,
 		DetectTables:           true,
 		TableSettings:          DefaultTableSettings(),
-		UseSegmentBasedTables:  true,
+		UseSegmentBasedTables:  false, // Opt-in: good for PDFs without ruling lines
 		UseAdaptiveThresholds:  true,
 	}
 }
