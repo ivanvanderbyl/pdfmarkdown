@@ -115,11 +115,98 @@ func ExtractPage(instance pdfium.Pdfium, page references.FPDF_PAGE, pageNumber i
 
 	// Detect tables if enabled
 	if config.DetectTables {
-		tables := DetectTables(resultPage, config.TableSettings)
+		var tables []Table
+
+		// Use segment-based detection (better for tables without ruling lines)
+		if config.UseSegmentBasedTables {
+			// Calculate adaptive thresholds if enabled
+			var thresholds AdaptiveThresholds
+			if config.UseAdaptiveThresholds {
+				thresholds = calculateAdaptiveThresholds(words)
+			} else {
+				// Use default thresholds
+				thresholds = AdaptiveThresholds{
+					HorizontalThreshold: 20.0,
+					VerticalThreshold:   5.0,
+				}
+			}
+
+			// Detect tables using segment-based approach
+			segmentTables := DetectTablesSegmentBased(resultPage, thresholds)
+			tables = append(tables, segmentTables...)
+		}
+
+		// Also use line-based detection (good for tables with ruling lines)
+		if len(lines) > 0 {
+			lineTables := DetectTables(resultPage, config.TableSettings)
+			tables = append(tables, lineTables...)
+		}
+
+		// Deduplicate tables (if both methods found the same table)
+		tables = deduplicateTables(tables)
+
 		resultPage.Tables = tables
 	}
 
 	return resultPage, nil
+}
+
+// deduplicateTables removes duplicate tables based on bounding box overlap
+func deduplicateTables(tables []Table) []Table {
+	if len(tables) <= 1 {
+		return tables
+	}
+
+	var unique []Table
+	for i, t1 := range tables {
+		isDuplicate := false
+		for j := i + 1; j < len(tables); j++ {
+			t2 := tables[j]
+
+			// Check if tables have significant overlap (> 70%)
+			overlap := calculateTableOverlap(t1, t2)
+			if overlap > 0.7 {
+				isDuplicate = true
+				break
+			}
+		}
+
+		if !isDuplicate {
+			unique = append(unique, t1)
+		}
+	}
+
+	return unique
+}
+
+// calculateTableOverlap calculates the overlap ratio between two tables
+func calculateTableOverlap(t1, t2 Table) float64 {
+	// Calculate intersection area
+	x0 := math.Max(t1.BBox.X0, t2.BBox.X0)
+	y0 := math.Max(t1.BBox.Top, t2.BBox.Top)
+	x1 := math.Min(t1.BBox.X1, t2.BBox.X1)
+	y1 := math.Min(t1.BBox.Bottom, t2.BBox.Bottom)
+
+	if x1 <= x0 || y1 <= y0 {
+		return 0 // No overlap
+	}
+
+	intersectionArea := (x1 - x0) * (y1 - y0)
+	t1Width := t1.BBox.X1 - t1.BBox.X0
+	t1Height := t1.BBox.Bottom - t1.BBox.Top
+	t2Width := t2.BBox.X1 - t2.BBox.X0
+	t2Height := t2.BBox.Bottom - t2.BBox.Top
+
+	t1Area := t1Width * t1Height
+	t2Area := t2Width * t2Height
+
+	// Overlap ratio relative to smaller table
+	smallerArea := math.Min(t1Area, t2Area)
+	if smallerArea == 0 {
+		return 0
+	}
+
+	return intersectionArea / smallerArea
 }
 
 // extractEnrichedChars extracts all characters with their metadata.

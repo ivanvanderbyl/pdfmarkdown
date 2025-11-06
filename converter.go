@@ -23,15 +23,25 @@ type Config struct {
 
 	// TableSettings configures table detection behavior (default: DefaultTableSettings())
 	TableSettings TableSettings
+
+	// UseSegmentBasedTables enables PDF-TREX segment-based table detection
+	// This works better for tables without ruling lines (default: true)
+	UseSegmentBasedTables bool
+
+	// UseAdaptiveThresholds enables document-specific threshold calculation
+	// Based on spacing distribution analysis (default: true)
+	UseAdaptiveThresholds bool
 }
 
 // DefaultConfig returns the default converter configuration.
 func DefaultConfig() Config {
 	return Config{
-		IncludePageBreaks:  true,
-		MinHeadingFontSize: 1.15,
-		DetectTables:       true,
-		TableSettings:      DefaultTableSettings(),
+		IncludePageBreaks:      true,
+		MinHeadingFontSize:     1.15,
+		DetectTables:           true,
+		TableSettings:          DefaultTableSettings(),
+		UseSegmentBasedTables:  true,
+		UseAdaptiveThresholds:  true,
 	}
 }
 

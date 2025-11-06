@@ -176,3 +176,155 @@ func clamp(value, min, max float64) float64 {
 	}
 	return value
 }
+
+// horizontalOverlapRatio calculates the horizontal overlapping ratio between two rectangles
+// Returns a value between 0 (no overlap) and 1 (complete overlap)
+// Based on PDF-TREX algorithm
+func horizontalOverlapRatio(r1, r2 Rect) float64 {
+	// Check if rectangles are horizontally overlapped
+	overlapped, condition := checkHorizontalOverlap(r1, r2)
+	if !overlapped {
+		return 0
+	}
+
+	delta := math.Min(r1.Height(), r2.Height())
+	if delta == 0 {
+		return 0
+	}
+
+	// Calculate overlap based on which overlap condition holds
+	switch condition {
+	case 1: // r2.Y0 <= r1.Y0 <= r2.Y1 <= r1.Y1
+		return (r2.Y1 - r1.Y0) / delta
+	case 2: // r1.Y0 <= r2.Y0 <= r1.Y1 <= r2.Y1
+		return (r1.Y1 - r2.Y0) / delta
+	case 3: // r1.Y0 <= r2.Y0 <= r2.Y1 <= r1.Y1
+		return (r2.Y1 - r2.Y0) / delta
+	case 4: // r2.Y0 <= r1.Y0 <= r1.Y1 <= r2.Y1
+		return (r1.Y1 - r1.Y0) / delta
+	}
+
+	return 0
+}
+
+// checkHorizontalOverlap checks if two rectangles are horizontally overlapped
+// Returns (overlapped bool, condition int) where condition indicates which overlap pattern
+func checkHorizontalOverlap(r1, r2 Rect) (bool, int) {
+	// Condition 1: r2.Y0 <= r1.Y0 <= r2.Y1 <= r1.Y1
+	if r2.Y0 <= r1.Y0 && r1.Y0 <= r2.Y1 && r2.Y1 <= r1.Y1 {
+		return true, 1
+	}
+
+	// Condition 2: r1.Y0 <= r2.Y0 <= r1.Y1 <= r2.Y1
+	if r1.Y0 <= r2.Y0 && r2.Y0 <= r1.Y1 && r1.Y1 <= r2.Y1 {
+		return true, 2
+	}
+
+	// Condition 3: r1.Y0 <= r2.Y0 <= r2.Y1 <= r1.Y1
+	if r1.Y0 <= r2.Y0 && r2.Y0 <= r2.Y1 && r2.Y1 <= r1.Y1 {
+		return true, 3
+	}
+
+	// Condition 4: r2.Y0 <= r1.Y0 <= r1.Y1 <= r2.Y1
+	if r2.Y0 <= r1.Y0 && r1.Y0 <= r1.Y1 && r1.Y1 <= r2.Y1 {
+		return true, 4
+	}
+
+	return false, 0
+}
+
+// horizontalDistance calculates the horizontal distance between two rectangles
+// Returns the gap size if overlapped, otherwise returns a very large number
+func horizontalDistance(r1, r2 Rect) float64 {
+	overlapped, _ := checkHorizontalOverlap(r1, r2)
+	if !overlapped {
+		return math.MaxFloat64
+	}
+
+	// r1 is to the left of r2
+	if r1.X1 < r2.X0 {
+		return r2.X0 - r1.X1
+	}
+
+	// r2 is to the left of r1
+	if r2.X1 < r1.X0 {
+		return r1.X0 - r2.X1
+	}
+
+	// Rectangles overlap horizontally as well
+	return 0
+}
+
+// verticalOverlapRatio calculates the vertical overlapping ratio between two rectangles
+// Returns a value between 0 (no overlap) and 1 (complete overlap)
+func verticalOverlapRatio(r1, r2 Rect) float64 {
+	overlapped, condition := checkVerticalOverlap(r1, r2)
+	if !overlapped {
+		return 0
+	}
+
+	delta := math.Min(r1.Width(), r2.Width())
+	if delta == 0 {
+		return 0
+	}
+
+	// Calculate overlap based on which overlap condition holds
+	switch condition {
+	case 1: // r2.X0 <= r1.X0 <= r2.X1 <= r1.X1
+		return (r2.X1 - r1.X0) / delta
+	case 2: // r1.X0 <= r2.X0 <= r1.X1 <= r2.X1
+		return (r1.X1 - r2.X0) / delta
+	case 3: // r1.X0 <= r2.X0 <= r2.X1 <= r1.X1
+		return (r2.X1 - r2.X0) / delta
+	case 4: // r2.X0 <= r1.X0 <= r1.X1 <= r2.X1
+		return (r1.X1 - r1.X0) / delta
+	}
+
+	return 0
+}
+
+// checkVerticalOverlap checks if two rectangles are vertically overlapped
+func checkVerticalOverlap(r1, r2 Rect) (bool, int) {
+	// Condition 1: r2.X0 <= r1.X0 <= r2.X1 <= r1.X1
+	if r2.X0 <= r1.X0 && r1.X0 <= r2.X1 && r2.X1 <= r1.X1 {
+		return true, 1
+	}
+
+	// Condition 2: r1.X0 <= r2.X0 <= r1.X1 <= r2.X1
+	if r1.X0 <= r2.X0 && r2.X0 <= r1.X1 && r1.X1 <= r2.X1 {
+		return true, 2
+	}
+
+	// Condition 3: r1.X0 <= r2.X0 <= r2.X1 <= r1.X1
+	if r1.X0 <= r2.X0 && r2.X0 <= r2.X1 && r2.X1 <= r1.X1 {
+		return true, 3
+	}
+
+	// Condition 4: r2.X0 <= r1.X0 <= r1.X1 <= r2.X1
+	if r2.X0 <= r1.X0 && r1.X0 <= r1.X1 && r1.X1 <= r2.X1 {
+		return true, 4
+	}
+
+	return false, 0
+}
+
+// verticalDistance calculates the vertical distance between two rectangles
+func verticalDistance(r1, r2 Rect) float64 {
+	overlapped, _ := checkVerticalOverlap(r1, r2)
+	if !overlapped {
+		return math.MaxFloat64
+	}
+
+	// r1 is above r2
+	if r1.Y1 < r2.Y0 {
+		return r2.Y0 - r1.Y1
+	}
+
+	// r2 is above r1
+	if r2.Y1 < r1.Y0 {
+		return r1.Y0 - r2.Y1
+	}
+
+	// Rectangles overlap vertically as well
+	return 0
+}
