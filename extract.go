@@ -366,9 +366,9 @@ func calculateAverageCharWidth(chars []EnrichedChar) float64 {
 	return totalWidth / float64(len(chars))
 }
 
-// detectWordBoundaries detects word boundaries in chars without requiring whitespace
-// Returns indices where word boundaries should be inserted
-// This is CONSERVATIVE and only splits on explicit whitespace
+// detectWordBoundaries detects word boundaries for normal horizontal text
+// Uses ONLY explicit whitespace to avoid false positives
+// Visual gap analysis is reserved for rotation-aware detection
 func detectWordBoundaries(chars []EnrichedChar) []int {
 	if len(chars) <= 1 {
 		return nil
@@ -379,24 +379,30 @@ func detectWordBoundaries(chars []EnrichedChar) []int {
 	for i := 1; i < len(chars); i++ {
 		curr := chars[i]
 
-		// Only whitespace creates boundaries
-		// All other heuristics (punctuation, currency, gaps, etc.) are disabled
-		// for normal text to avoid false positives
+		// Only explicit whitespace creates word boundaries
 		if curr.Text == ' ' || curr.Text == '\t' || curr.Text == '\n' || curr.Text == '\r' {
 			boundaries = append(boundaries, i)
 			continue
 		}
 
-		// NOTE: Punctuation, currency, gap-based, case-transition, and digit/letter
-		// boundary detection has been DISABLED for normal horizontal text.
-		// This prevents false positives like:
-		// - "$75,000" splitting into "$75 ,000" (comma treated as boundary)
-		// - "STATEMENT" splitting into "STAT E M E N T" (gaps in character spacing)
-		// - "iPhone" splitting into "i Phone" (case transition)
+		// NOTE: Visual gap-based detection has been DISABLED for normal text.
 		//
-		// These heuristics are only applied in rotation-aware detection for
-		// rotated text where PDFs may genuinely lack whitespace characters.
-		// (see detectWordBoundariesRotationAware)
+		// Why: PDFs have highly variable character spacing:
+		// - Proportional fonts: 'i' and 'W' have different widths
+		// - Kerning: 'AV' may be closer than 'AA'
+		// - Tracking: Some text is letter-spaced for visual effect
+		// - Hyphens/periods: "SOA-SF0005-2025" has small gaps that aren't word boundaries
+		// - Email addresses: "user.name@example.com" has dots that aren't boundaries
+		//
+		// Any gap-based threshold creates false positives:
+		// - Too low: Splits normal words "STATEMENT" → "STAT E M E N T"
+		// - Too high: Misses genuine concatenations
+		//
+		// Solution: Use explicit whitespace for normal text, reserve gap analysis
+		// for rotation-aware detection where whitespace is truly absent.
+		//
+		// Visual verification: Check PDF rendering to see if spaces are present.
+		// If the PDF visually shows proper spacing, whitespace chars exist.
 	}
 
 	return boundaries
