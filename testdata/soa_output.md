@@ -26,28 +26,34 @@ structure.
 ## YOUR CURRENT SITUATION
   
 ### Entity Structure
-Your current holdings are structured across the following entities:
+  
+Your current holdings are structured across the following entities:  
 1. Smith Family Trust (SF0005-001) - Discretionary trust for income distribution
+  
 2. John's Account (SF0005-002) - Individual holdings
+  
 3. Jane's Account (SF0005-003) - Individual holdings
+  
 4. Smith Family SMSF (SF0005-004) - Self-managed superannuation fund
   
 ### Financial Accounts
-Smith Family Joint Savings
-Account: BSB 062-456 Account 67890
-Institution: Commonwealth Bank
-Account ID: FA-SF0005-001
-Current Balance: $127,500 AUD
-Joint holders: John Smith & Jane Smith (Administrator access)
-Smith Family Investment Portfolio
-Account: INV-98765-43210
-Institution: Vanguard Australia
-Account ID: FA-SF0005-002
-Current Value: $485,000 AUD
+  
+Smith Family Joint Savings  
+Account: BSB 062-456 Account 67890  
+Institution: Commonwealth Bank  
+Account ID: FA-SF0005-001  
+Current Balance: $127,500 AUD  
+Joint holders: John Smith & Jane Smith (Administrator access)  
+Smith Family Investment Portfolio  
+Account: INV-98765-43210  
+Institution: Vanguard Australia  
+Account ID: FA-SF0005-002  
+Current Value: $485,000 AUD  
 John Smith (Manage access), Jane Smith (View access)
   
 ### External Relationships
-Your accountant, Sarah Chen (sarah.chen@example.com), maintains oversight of tax
+  
+Your accountant, Sarah Chen (sarah.chen@example.com), maintains oversight of tax  
 planning matters and coordinates with our firm on strategy implementation.
   
 ---
@@ -55,29 +61,33 @@ planning matters and coordinates with our firm on strategy implementation.
 ## RECOMMENDATIONS
   
 ### 1. Excess Cash Deployment
-Issue: The joint savings account (BSB-062-456 67890) currently holds $127,500, which
-exceeds your 6-month emergency reserve requirement.
-Recommendation: Transfer $75,000 from Commonwealth Bank savings to your Vanguard
-investment portfolio (INV-98765-43210) for deployment into diversified fixed income and
-equity allocations.
+  
+Issue: The joint savings account (BSB-062-456 67890) currently holds $127,500, which  
+exceeds your 6-month emergency reserve requirement.  
+Recommendation: Transfer $75,000 from Commonwealth Bank savings to your Vanguard  
+investment portfolio (INV-98765-43210) for deployment into diversified fixed income and  
+equity allocations.  
 Rationale: Current savings rate (2.85%) is below inflation, creating negative real returns.
-2. SMSF Contribution Strategy
-Issue: Both members have unutilized concessional contribution caps.
-Recommendation: Maximum concessional contributions to Smith Family SMSF
-(SF0005-004) of $27,500 per member annually.
-Implementation: Coordinate with Sarah Chen on salary sacrifice arrangements. Tax
+  
+2. SMSF Contribution Strategy  
+Issue: Both members have unutilized concessional contribution caps.  
+Recommendation: Maximum concessional contributions to Smith Family SMSF  
+(SF0005-004) of $27,500 per member annually.  
+Implementation: Coordinate with Sarah Chen on salary sacrifice arrangements. Tax  
 savings of approximately $8,250 annually per member.
-3. Trust Distribution Review
-Issue: Smith Family Trust (SF0005-001) distributions have not been optimized for tax
-efficiency.
-Recommendation: Review annual distributions with consideration for adult children
-beneficiaries and income splitting opportunities.
+  
+3. Trust Distribution Review  
+Issue: Smith Family Trust (SF0005-001) distributions have not been optimized for tax  
+efficiency.  
+Recommendation: Review annual distributions with consideration for adult children  
+beneficiaries and income splitting opportunities.  
 Action Required: Quarterly review meetings prior to EOFY.
-4. Investment Portfolio Rebalancing
-Issue: Current Vanguard portfolio (INV-98765-43210) has drifted to 75% equities / 25% fixed
-income.
-Recommendation: Rebalance to target 65% equities / 35% fixed income allocation to
-reduce volatility approaching retirement.
+  
+4. Investment Portfolio Rebalancing  
+Issue: Current Vanguard portfolio (INV-98765-43210) has drifted to 75% equities / 25% fixed  
+income.  
+Recommendation: Rebalance to target 65% equities / 35% fixed income allocation to  
+reduce volatility approaching retirement.  
 Implementation: Authorized under existing Transact access (CFR-ACC001-FA002).
   
 ---

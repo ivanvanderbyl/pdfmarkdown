@@ -119,22 +119,64 @@ func convertParagraphToMarkdown(md *markdown.Markdown, para Paragraph) {
 
 	// Handle headings
 	if para.IsHeading {
-		text := strings.TrimRight(para.Text(), " \t")
-		switch para.HeadingLevel {
-		case 1:
-			md.H1(text)
-		case 2:
-			md.H2(text)
-		case 3:
-			md.H3(text)
-		case 4:
-			md.H4(text)
-		case 5:
-			md.H5(text)
-		case 6:
-			md.H6(text)
-		default:
-			md.H1(text)
+		// For multi-line paragraphs marked as headings, only the first line is the heading
+		// The rest should be rendered as regular text
+		if len(para.Lines) > 1 {
+			// Render first line as heading
+			firstLineText := ""
+			for j, word := range para.Lines[0].Words {
+				if j > 0 {
+					firstLineText += " "
+				}
+				firstLineText += word.Text
+			}
+			firstLineText = strings.TrimRight(firstLineText, " \t")
+
+			switch para.HeadingLevel {
+			case 1:
+				md.H1(firstLineText)
+			case 2:
+				md.H2(firstLineText)
+			case 3:
+				md.H3(firstLineText)
+			case 4:
+				md.H4(firstLineText)
+			case 5:
+				md.H5(firstLineText)
+			case 6:
+				md.H6(firstLineText)
+			default:
+				md.H1(firstLineText)
+			}
+
+			// Render remaining lines as regular paragraph
+			// Create a temporary non-heading paragraph for the rest
+			restPara := Paragraph{
+				Lines:     para.Lines[1:],
+				Box:       para.Box,
+				IsHeading: false,
+			}
+			md.LF()
+			convertParagraphToMarkdown(md, restPara)
+		} else {
+			// Single-line heading - render normally
+			text := strings.TrimRight(para.Text(), " \t")
+			switch para.HeadingLevel {
+			case 1:
+				md.H1(text)
+			case 2:
+				md.H2(text)
+			case 3:
+				md.H3(text)
+			case 4:
+				md.H4(text)
+			case 5:
+				md.H5(text)
+			case 6:
+				md.H6(text)
+			default:
+				md.H1(text)
+			}
 		}
 		return
 	}
@@ -175,28 +217,63 @@ func convertParagraphToMarkdown(md *markdown.Markdown, para Paragraph) {
 	}
 
 	// Handle regular paragraphs with inline formatting
-	var sb strings.Builder
-	for i, line := range para.Lines {
-		if i > 0 {
-			// Preserve line breaks within paragraphs using Markdown hard line break
-			sb.WriteString("  \n")
+	// Special handling: split on numbered items for better readability
+	var currentSection strings.Builder
+	sections := []string{}
+
+	for _, line := range para.Lines {
+		// Check if this line starts with a numbered item (2., 3., 4., etc.)
+		startsWithNumber := false
+		if len(line.Words) > 0 {
+			firstWord := line.Words[0].Text
+			if len(firstWord) >= 2 && firstWord[0] >= '2' && firstWord[0] <= '9' && firstWord[1] == '.' {
+				startsWithNumber = true
+			}
 		}
 
-		// Build the line content with inline formatting
+		// If we hit a new numbered section (and we have content), save current section
+		if startsWithNumber && currentSection.Len() > 0 {
+			sections = append(sections, strings.TrimRight(currentSection.String(), " \t"))
+			currentSection.Reset()
+		}
+
+		// Add line break before this line (unless it's the first line or start of new section)
+		if currentSection.Len() > 0 {
+			currentSection.WriteString("  \n")
+		}
+
+		// Build the line content
 		for j, word := range line.Words {
 			if j > 0 {
-				sb.WriteString(" ")
+				currentSection.WriteString(" ")
 			}
-			// Apply inline formatting
 			formattedWord := applyInlineFormatting(word)
-			sb.WriteString(formattedWord)
+			currentSection.WriteString(formattedWord)
 		}
 	}
 
-	// Trim trailing whitespace
-	text := strings.TrimRight(sb.String(), " \t")
-	if text != "" {
-		md.PlainText(text)
+	// Add final section
+	if currentSection.Len() > 0 {
+		sections = append(sections, strings.TrimRight(currentSection.String(), " \t"))
+	}
+
+	// Output sections with visual separation
+	if len(sections) == 1 {
+		// Single section - output normally
+		md.PlainText(sections[0])
+	} else if len(sections) > 1 {
+		// Multiple sections - add blank lines between numbered items
+		for si, section := range sections {
+			if section != "" {
+				// Output the section
+				md.PlainText(section)
+
+				// Add visual separator after each section except the last
+				if si < len(sections)-1 {
+					md.LF() // End current section, creating blank line before next section
+				}
+			}
+		}
 	}
 }
 
