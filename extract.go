@@ -368,7 +368,7 @@ func calculateAverageCharWidth(chars []EnrichedChar) float64 {
 
 // detectWordBoundaries detects word boundaries in chars without requiring whitespace
 // Returns indices where word boundaries should be inserted
-// This is CONSERVATIVE and only splits on explicit whitespace or special characters
+// This is CONSERVATIVE and only splits on explicit whitespace
 func detectWordBoundaries(chars []EnrichedChar) []int {
 	if len(chars) <= 1 {
 		return nil
@@ -377,30 +377,26 @@ func detectWordBoundaries(chars []EnrichedChar) []int {
 	var boundaries []int
 
 	for i := 1; i < len(chars); i++ {
-		prev, curr := chars[i-1], chars[i]
+		curr := chars[i]
 
-		// 1. Whitespace is always a boundary
+		// Only whitespace creates boundaries
+		// All other heuristics (punctuation, currency, gaps, etc.) are disabled
+		// for normal text to avoid false positives
 		if curr.Text == ' ' || curr.Text == '\t' || curr.Text == '\n' || curr.Text == '\r' {
 			boundaries = append(boundaries, i)
 			continue
 		}
 
-		// 2. Special characters (currency, punctuation) start new words
-		if isCurrency(curr.Text) || isPunctuation(curr.Text) {
-			boundaries = append(boundaries, i)
-			continue
-		}
-
-		// 3. After currency/punctuation, start new word
-		if isCurrency(prev.Text) || isPunctuation(prev.Text) {
-			boundaries = append(boundaries, i)
-			continue
-		}
-
-		// NOTE: Gap-based, case-transition, and digit/letter boundary detection
-		// has been DISABLED for normal horizontal text to avoid breaking normal PDFs.
+		// NOTE: Punctuation, currency, gap-based, case-transition, and digit/letter
+		// boundary detection has been DISABLED for normal horizontal text.
+		// This prevents false positives like:
+		// - "$75,000" splitting into "$75 ,000" (comma treated as boundary)
+		// - "STATEMENT" splitting into "STAT E M E N T" (gaps in character spacing)
+		// - "iPhone" splitting into "i Phone" (case transition)
+		//
 		// These heuristics are only applied in rotation-aware detection for
-		// rotated text (see detectWordBoundariesRotationAware).
+		// rotated text where PDFs may genuinely lack whitespace characters.
+		// (see detectWordBoundariesRotationAware)
 	}
 
 	return boundaries
