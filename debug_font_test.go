@@ -11,7 +11,7 @@ import (
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
 
-	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/Alcova-AI/pdfmarkdown"
 )
 
 func TestDebug_SamplePDF_FontSizes(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/urfave/cli/v3"
 
-	"github.com/ivanvanderbyl/pdfmarkdown"
+	"github.com/Alcova-AI/pdfmarkdown"
 )
 
 func main() {

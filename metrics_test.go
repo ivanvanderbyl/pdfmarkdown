@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ivanvanderbyl/pdfmarkdown"
+	"github.com/Alcova-AI/pdfmarkdown"
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
 )

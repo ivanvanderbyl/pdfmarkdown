@@ -1,4 +1,4 @@
-module github.com/ivanvanderbyl/pdfmarkdown
+module github.com/Alcova-AI/pdfmarkdown
 
 go 1.25.1
 
