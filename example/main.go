@@ -39,6 +39,12 @@ func main() {
 				Usage: "End page number (0-indexed)",
 				Value: -1,
 			},
+			&cli.BoolFlag{
+				Name:    "metrics",
+				Aliases: []string{"m"},
+				Usage:   "Enable processing time and statistics logging",
+				Value:   false,
+			},
 		},
 		Action: convertPDF,
 	}
@@ -53,6 +59,7 @@ func convertPDF(_ context.Context, cmd *cli.Command) error {
 	outputPath := cmd.String("output")
 	startPage := cmd.Int("start-page")
 	endPage := cmd.Int("end-page")
+	enableMetrics := cmd.Bool("metrics")
 
 	// Initialise pdfium
 	pool, err := webassembly.Init(webassembly.Config{
@@ -70,8 +77,10 @@ func convertPDF(_ context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to get pdfium instance: %w", err)
 	}
 
-	// Create converter
-	converter := pdfmarkdown.NewConverter(instance)
+	// Create converter with metrics enabled if requested
+	config := pdfmarkdown.DefaultConfig()
+	config.EnableMetricsLogging = enableMetrics
+	converter := pdfmarkdown.NewConverterWithConfig(instance, config)
 
 	// Get document info
 	info, err := converter.GetDocumentInfo(inputPath)
