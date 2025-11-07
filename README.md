@@ -141,15 +141,18 @@ A CLI tool is provided for quick conversions:
 
 ### Installation
 
+Install directly using `go install`:
+
 ```bash
-go install github.com/ivanvanderbyl/pdfmarkdown/example@latest
+go install github.com/ivanvanderbyl/pdfmarkdown/cmd/pdfmarkdown@latest
 ```
 
 Or build from source:
 
 ```bash
-cd example
-go build -o pdfmarkdown
+git clone https://github.com/ivanvanderbyl/pdfmarkdown.git
+cd pdfmarkdown
+go build -o bin/pdfmarkdown ./cmd/pdfmarkdown
 ```
 
 ### Usage
