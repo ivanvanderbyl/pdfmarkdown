@@ -2,6 +2,7 @@ package pdfmarkdown
 
 import (
 	"bytes"
+	"sort"
 	"strings"
 
 	"github.com/ivanvanderbyl/markdown"
@@ -9,6 +10,9 @@ import (
 
 // ToMarkdown converts a document to markdown format.
 func (d *Document) ToMarkdown(config Config) string {
+	// Normalize heading levels across the entire document
+	normalizeDocumentHeadings(d)
+
 	var buf bytes.Buffer
 	md := markdown.NewMarkdown(&buf)
 
@@ -37,6 +41,74 @@ func (d *Document) ToMarkdown(config Config) string {
 	}
 
 	return buf.String()
+}
+
+// normalizeDocumentHeadings adjusts heading levels across all pages to be consistent
+// This ensures H1 is the largest heading across the entire document, not just within a page
+func normalizeDocumentHeadings(doc *Document) {
+	// Collect all heading font sizes across all pages
+	type HeadingInfo struct {
+		fontSize float64
+		pageIdx  int
+		paraIdx  int
+	}
+
+	var headings []HeadingInfo
+	fontSizeSet := make(map[float64]bool)
+
+	for pi, page := range doc.Pages {
+		for pri, para := range page.Paragraphs {
+			if para.IsHeading && len(para.Lines) > 0 && len(para.Lines[0].Words) > 0 {
+				// Get max font size of the heading
+				var maxSize float64
+				for _, word := range para.Lines[0].Words {
+					if word.FontSize > maxSize {
+						maxSize = word.FontSize
+					}
+				}
+
+				headings = append(headings, HeadingInfo{
+					fontSize: maxSize,
+					pageIdx:  pi,
+					paraIdx:  pri,
+				})
+				fontSizeSet[maxSize] = true
+			}
+		}
+	}
+
+	if len(fontSizeSet) == 0 {
+		return
+	}
+
+	// Create sorted list of unique font sizes (descending)
+	var uniqueSizes []float64
+	for size := range fontSizeSet {
+		uniqueSizes = append(uniqueSizes, size)
+	}
+	sort.Float64s(uniqueSizes)
+	// Reverse to descending
+	for i := 0; i < len(uniqueSizes)/2; i++ {
+		j := len(uniqueSizes) - 1 - i
+		uniqueSizes[i], uniqueSizes[j] = uniqueSizes[j], uniqueSizes[i]
+	}
+
+	// Map font sizes to heading levels (largest = H1, etc.)
+	sizeToLevel := make(map[float64]int)
+	for i, size := range uniqueSizes {
+		if i < 6 {
+			sizeToLevel[size] = i + 1
+		} else {
+			sizeToLevel[size] = 6 // Max H6
+		}
+	}
+
+	// Apply normalized levels to all headings
+	for _, h := range headings {
+		if level, ok := sizeToLevel[h.fontSize]; ok {
+			doc.Pages[h.pageIdx].Paragraphs[h.paraIdx].HeadingLevel = level
+		}
+	}
 }
 
 // convertParagraphToMarkdown converts a single paragraph to markdown using the builder.

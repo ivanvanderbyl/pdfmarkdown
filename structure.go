@@ -429,19 +429,16 @@ func detectHeadings(paragraphs []Paragraph, config Config) {
 	bodyFontSize := allFontSizes[medianIdx]
 
 	// Collect distinct font sizes that are meaningfully larger than body text
+	// Consider both single-line paragraphs AND first lines of multi-line paragraphs
 	fontSizeCount := make(map[float64]int)
 	for _, para := range paragraphs {
-		// Only consider single-line paragraphs for heading detection
-		if len(para.Lines) != 1 {
+		if len(para.Lines) == 0 || len(para.Lines[0].Words) == 0 {
 			continue
 		}
 
 		line := para.Lines[0]
-		if len(line.Words) == 0 {
-			continue
-		}
 
-		// Get the maximum font size in this line
+		// Get the maximum font size in the first line
 		var maxFontSize float64
 		for _, word := range line.Words {
 			if word.FontSize > maxFontSize {
@@ -449,9 +446,33 @@ func detectHeadings(paragraphs []Paragraph, config Config) {
 			}
 		}
 
-		// Only track sizes meaningfully larger than body text
-		if maxFontSize >= bodyFontSize*config.MinHeadingFontSize {
-			fontSizeCount[maxFontSize]++
+		// For multi-line paragraphs, check if first line is a potential subsection heading
+		// (larger than the rest of the paragraph content)
+		if len(para.Lines) > 1 {
+			// Get average font size of remaining lines
+			var totalSize float64
+			var wordCount int
+			for li := 1; li < len(para.Lines); li++ {
+				for _, word := range para.Lines[li].Words {
+					totalSize += word.FontSize
+					wordCount++
+				}
+			}
+
+			// Only count first line if it's significantly larger than rest of paragraph
+			if wordCount > 0 {
+				avgRestSize := totalSize / float64(wordCount)
+				// Use 1.15x ratio (15% larger) to catch subsection headings
+				// that are subtly larger than body text
+				if maxFontSize >= avgRestSize*1.15 && maxFontSize >= bodyFontSize*config.MinHeadingFontSize {
+					fontSizeCount[maxFontSize]++
+				}
+			}
+		} else {
+			// Single-line paragraph - count if larger than body text
+			if maxFontSize >= bodyFontSize*config.MinHeadingFontSize {
+				fontSizeCount[maxFontSize]++
+			}
 		}
 	}
 
@@ -479,15 +500,51 @@ func detectHeadings(paragraphs []Paragraph, config Config) {
 	for i := range paragraphs {
 		para := &paragraphs[i]
 
-		// Skip multi-line paragraphs (headings are typically single line)
-		if len(para.Lines) != 1 {
+		if len(para.Lines) == 0 || len(para.Lines[0].Words) == 0 {
 			continue
 		}
 
-		line := para.Lines[0]
-		if len(line.Words) == 0 {
+		// For multi-line paragraphs, check if the first line is a subsection heading
+		// (larger font than the rest of the paragraph)
+		if len(para.Lines) > 1 {
+			// Get font size of first line
+			var firstLineMaxSize float64
+			for _, word := range para.Lines[0].Words {
+				if word.FontSize > firstLineMaxSize {
+					firstLineMaxSize = word.FontSize
+				}
+			}
+
+			// Get average font size of remaining lines
+			var totalSize float64
+			var wordCount int
+			for li := 1; li < len(para.Lines); li++ {
+				for _, word := range para.Lines[li].Words {
+					totalSize += word.FontSize
+					wordCount++
+				}
+			}
+
+			if wordCount > 0 {
+				avgRestSize := totalSize / float64(wordCount)
+
+				// If first line is significantly larger (15%+) and meets heading threshold,
+				// treat it as a subsection heading
+				if firstLineMaxSize >= avgRestSize*1.15 && firstLineMaxSize >= bodyFontSize*config.MinHeadingFontSize {
+					// Check if it's in our known heading sizes
+					if level, isHeading := sizeToLevel[firstLineMaxSize]; isHeading {
+						para.IsHeading = true
+						para.HeadingLevel = level
+					}
+				}
+			}
+
+			// Skip further checks for multi-line paragraphs
 			continue
 		}
+
+		// Single-line paragraph handling
+		line := para.Lines[0]
 
 		// Get maximum font size in line
 		var maxFontSize float64

@@ -16,47 +16,47 @@ Australian Financial Services Licence: AFSL 123456898
   
 ---
   
-# EXECUTIVE SUMMARY
+## EXECUTIVE SUMMARY
   
 This Statement of Advice outlines our recommendations for the Smith Household's financial  
 structure and investment strategy. Our recommendations focus on tax-effective wealth  
 accumulation, asset protection, and retirement planning through your existing entity  
 structure.
   
-# YOUR CURRENT SITUATION
+## YOUR CURRENT SITUATION
   
-Entity Structure  
-Your current holdings are structured across the following entities:  
-1. Smith Family Trust  
--  
-(SF0005-001) Discretionary trust for income distribution  
-2. John's Account -(SF0005-002) Individual holdings  
-3. Jane's Account -(SF0005-003) Individual holdings  
+### Entity Structure
+Your current holdings are structured across the following entities:
+1. Smith Family Trust
+-
+(SF0005-001) Discretionary trust for income distribution
+2. John's Account -(SF0005-002) Individual holdings
+3. Jane's Account -(SF0005-003) Individual holdings
 4. Smith SMSF -Family (SF0005-004) Self-managed superannuation fund
   
-Financial Accounts  
-Smith Family Joint Savings  
-Account: BSB 062-456 Account 67890  
-Institution: Commonwealth Bank  
-Account ID: FA-SF0005-001  
-Current Balance: $127,500 AUD  
-Joint holders: John Smith & Jane Smith (Administrator access)  
-Smith Family Investment Portfolio  
-Account: INV-98765-43210  
-Institution: Vanguard Australia  
-Account ID: FA-SF0005-002  
-Current Value: $485,000 AUD  
+### Financial Accounts
+Smith Family Joint Savings
+Account: BSB 062-456 Account 67890
+Institution: Commonwealth Bank
+Account ID: FA-SF0005-001
+Current Balance: $127,500 AUD
+Joint holders: John Smith & Jane Smith (Administrator access)
+Smith Family Investment Portfolio
+Account: INV-98765-43210
+Institution: Vanguard Australia
+Account ID: FA-SF0005-002
+Current Value: $485,000 AUD
 John Smith (Manage access), Jane Smith (View access)
   
-External Relationships  
-Your accountant, Sarah Chen (sarah.chen@example.com), maintains oversight of tax  
+### External Relationships
+Your accountant, Sarah Chen (sarah.chen@example.com), maintains oversight of tax
 planning matters and coordinates with our firm on strategy implementation.
   
 ---
   
-# RECOMMENDATIONS
+## RECOMMENDATIONS
   
-1. Excess Cash Deployment
+### 1. Excess Cash Deployment
 Issue: The joint savings account (BSB-062-456 67890) currently holds $127,500, which
 exceeds your 6-month emergency reserve requirement.
 Recommendation: Transfer $75,000 from Commonwealth Bank savings to your Vanguard
@@ -84,7 +84,7 @@ Implementation: Authorized under existing Transact access (CFR-ACC001-FA002).
   
 ---
   
-# FEES & REMUNERATION
+## FEES & REMUNERATION
   
 ● Initial advice fee: $3,300 (inc. GST)  
 ●  
@@ -93,7 +93,7 @@ Ongoing portfolio management: 0.85% p.a. on funds under advice
   
 ---
   
-# IMPORTANT INFORMATION
+## IMPORTANT INFORMATION
   
 This advice is based on your circumstances as at the date of preparation. Implementation  
 requires your written authority. Please review carefully and contact me with any questions.  
