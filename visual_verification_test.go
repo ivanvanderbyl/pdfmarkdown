@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pdfmarkdown "github.com/Alcova-AI/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
 	"github.com/klippa-app/go-pdfium/requests"
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
@@ -182,8 +182,8 @@ func TestVisualVerification_SOA(t *testing.T) {
 
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr ||
-		   len(s) > len(substr) && s[:len(substr)] == substr ||
-		   (len(s) > len(substr) && findSubstring(s, substr))
+		len(s) > len(substr) && s[:len(substr)] == substr ||
+		(len(s) > len(substr) && findSubstring(s, substr))
 }
 
 func findSubstring(s, substr string) bool {
@@ -196,7 +196,10 @@ func findSubstring(s, substr string) bool {
 }
 
 // Helper to visualize character-level gaps
-func visualizeGaps(t *testing.T, chars []struct{ text rune; x0, x1 float64 }) {
+func visualizeGaps(t *testing.T, chars []struct {
+	text   rune
+	x0, x1 float64
+}) {
 	fmt.Println("\n=== Character-Level Gap Visualization ===")
 	for i := 0; i < len(chars)-1; i++ {
 		curr := chars[i]

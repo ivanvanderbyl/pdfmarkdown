@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pdfmarkdown "github.com/Alcova-AI/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
 	"github.com/klippa-app/go-pdfium/requests"
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
@@ -93,14 +93,14 @@ func TestIssue140_ImprovedTableDetection(t *testing.T) {
 		// The table should contain purchase order information
 		// Note: Due to 270° rotation, text is backwards
 		expectedContent := []string{
-			"5030018465800",    // Reversed UPC: 0085648100305 → 5030018465800
-			"0830018465800",    // Reversed UPC: 0085648100380 → 0830018465800
-			"3030018465800",    // Reversed UPC: 0085648100303 → 3030018465800
-			"0030018465800",    // Reversed UPC: 0085648100300 → 0030018465800
-			"LARTNEC",          // CENTRAL backwards (part of LILYSKMACENTRAL)
-			"COHC",             // CHOC backwards
-			"736",              // Amount fragments
-			"886",              // Amount fragments
+			"5030018465800", // Reversed UPC: 0085648100305 → 5030018465800
+			"0830018465800", // Reversed UPC: 0085648100380 → 0830018465800
+			"3030018465800", // Reversed UPC: 0085648100303 → 3030018465800
+			"0030018465800", // Reversed UPC: 0085648100300 → 0030018465800
+			"LARTNEC",       // CENTRAL backwards (part of LILYSKMACENTRAL)
+			"COHC",          // CHOC backwards
+			"736",           // Amount fragments
+			"886",           // Amount fragments
 		}
 
 		markdownLower := strings.ToLower(markdown)
@@ -167,48 +167,48 @@ func TestIssue140_ExpectedStructure(t *testing.T) {
 		},
 		"rows": []map[string]string{
 			{
-				"Line no":         "5",
-				"UPC code":        "0085648100305",
-				"Location code":   "LILYSKMACENTRAL",
+				"Line no":          "5",
+				"UPC code":         "0085648100305",
+				"Location code":    "LILYSKMACENTRAL",
 				"Item Description": "CHOC ALMND SLTD 40%",
-				"Quantity":        "637",
-				"Bill Amount":     "$0.61",
-				"Accrued Amount":  "$388.57",
-				"Handling Rate":   "0.0000",
-				"PO number":       "",
+				"Quantity":         "637",
+				"Bill Amount":      "$0.61",
+				"Accrued Amount":   "$388.57",
+				"Handling Rate":    "0.0000",
+				"PO number":        "",
 			},
 			{
-				"Line no":         "8",
-				"UPC code":        "0085648100380",
-				"Location code":   "LILYSKMACENTRAL",
+				"Line no":          "8",
+				"UPC code":         "0085648100380",
+				"Location code":    "LILYSKMACENTRAL",
 				"Item Description": "SLTD CRMLZD CHC DRK",
-				"Quantity":        "688",
-				"Bill Amount":     "$0.61",
-				"Accrued Amount":  "$419.68",
-				"Handling Rate":   "0.0000",
-				"PO number":       "",
+				"Quantity":         "688",
+				"Bill Amount":      "$0.61",
+				"Accrued Amount":   "$419.68",
+				"Handling Rate":    "0.0000",
+				"PO number":        "",
 			},
 			{
-				"Line no":         "3",
-				"UPC code":        "0085648100303",
-				"Location code":   "LILYSKMACENTRAL",
+				"Line no":          "3",
+				"UPC code":         "0085648100303",
+				"Location code":    "LILYSKMACENTRAL",
 				"Item Description": "CHOC DARK 55% ALMND",
-				"Quantity":        "560",
-				"Bill Amount":     "$0.61",
-				"Accrued Amount":  "$341.60",
-				"Handling Rate":   "0.0000",
-				"PO number":       "",
+				"Quantity":         "560",
+				"Bill Amount":      "$0.61",
+				"Accrued Amount":   "$341.60",
+				"Handling Rate":    "0.0000",
+				"PO number":        "",
 			},
 			{
-				"Line no":         "0",
-				"UPC code":        "0085648100300",
-				"Location code":   "LILYSKMACENTRAL",
+				"Line no":          "0",
+				"UPC code":         "0085648100300",
+				"Location code":    "LILYSKMACENTRAL",
 				"Item Description": "BAR CHOC DARK 55%",
-				"Quantity":        "415",
-				"Bill Amount":     "$0.61",
-				"Accrued Amount":  "$253.15",
-				"Handling Rate":   "0.0000",
-				"PO number":       "",
+				"Quantity":         "415",
+				"Bill Amount":      "$0.61",
+				"Accrued Amount":   "$253.15",
+				"Handling Rate":    "0.0000",
+				"PO number":        "",
 			},
 		},
 	}

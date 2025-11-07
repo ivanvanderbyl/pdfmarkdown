@@ -3,6 +3,7 @@ module github.com/ivanvanderbyl/pdfmarkdown
 go 1.25.1
 
 require (
+	github.com/ivanvanderbyl/markdown v0.1.0
 	github.com/klippa-app/go-pdfium v1.17.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
@@ -12,7 +13,6 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/ivanvanderbyl/markdown v0.1.0 // indirect
 	github.com/jolestar/go-commons-pool/v2 v2.1.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
