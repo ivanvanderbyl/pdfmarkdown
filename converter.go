@@ -2,12 +2,38 @@ package pdfmarkdown
 
 import (
 	"io"
+	"log"
+	"time"
 
 	"github.com/klippa-app/go-pdfium"
 	"github.com/klippa-app/go-pdfium/references"
 	"github.com/klippa-app/go-pdfium/requests"
 	"github.com/pkg/errors"
 )
+
+// ProcessingMetrics contains timing and statistics for PDF conversion
+type ProcessingMetrics struct {
+	TotalTime       time.Duration
+	DocumentOpen    time.Duration
+	PageExtractions []PageMetrics
+	Statistics      DocumentStatistics
+}
+
+// PageMetrics contains timing for a single page
+type PageMetrics struct {
+	PageNumber int
+	Duration   time.Duration
+}
+
+// DocumentStatistics contains document-level statistics
+type DocumentStatistics struct {
+	TotalPages      int
+	TotalParagraphs int
+	TotalTables     int
+	TotalHeadings   int
+	TotalWords      int
+	TotalCharacters int
+}
 
 // Config controls markdown conversion behavior.
 type Config struct {
@@ -31,6 +57,9 @@ type Config struct {
 	// UseAdaptiveThresholds enables document-specific threshold calculation
 	// Based on spacing distribution analysis (default: true)
 	UseAdaptiveThresholds bool
+
+	// EnableMetricsLogging enables processing time and statistics logging (default: false)
+	EnableMetricsLogging bool
 }
 
 // DefaultConfig returns the default converter configuration.
@@ -162,6 +191,8 @@ func (c *Converter) ConvertPageRange(filePath string, startPage, endPage int) (s
 
 // convertDocument converts a complete PDF document to markdown.
 func (c *Converter) convertDocument(docRef references.FPDF_DOCUMENT) (string, error) {
+	startTime := time.Now()
+
 	// Get page count
 	pageCount, err := c.instance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{
 		Document: docRef,
@@ -170,17 +201,44 @@ func (c *Converter) convertDocument(docRef references.FPDF_DOCUMENT) (string, er
 		return "", errors.Wrap(err, "failed to get page count")
 	}
 
-	// Extract all pages
+	// Extract all pages with timing
 	document := &Document{
 		Pages: make([]Page, 0, pageCount.PageCount),
 	}
 
+	var pageMetrics []PageMetrics
 	for i := 0; i < pageCount.PageCount; i++ {
+		pageStart := time.Now()
 		page, err := c.extractPage(docRef, i)
+		pageDuration := time.Since(pageStart)
+
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to extract page %d", i+1)
 		}
 		document.Pages = append(document.Pages, *page)
+
+		pageMetrics = append(pageMetrics, PageMetrics{
+			PageNumber: i + 1,
+			Duration:   pageDuration,
+		})
+
+		if c.config.EnableMetricsLogging {
+			log.Printf("Page %d/%d extracted in %v", i+1, pageCount.PageCount, pageDuration)
+		}
+	}
+
+	// Calculate document statistics
+	stats := calculateDocumentStatistics(document)
+
+	totalTime := time.Since(startTime)
+
+	// Log metrics if enabled
+	if c.config.EnableMetricsLogging {
+		logProcessingMetrics(ProcessingMetrics{
+			TotalTime:       totalTime,
+			PageExtractions: pageMetrics,
+			Statistics:      stats,
+		})
 	}
 
 	return document.ToMarkdown(c.config), nil
@@ -207,6 +265,133 @@ func (c *Converter) extractPage(docRef references.FPDF_DOCUMENT, pageIndex int) 
 	}
 
 	return page, nil
+}
+
+// calculateDocumentStatistics calculates statistics for the document
+func calculateDocumentStatistics(doc *Document) DocumentStatistics {
+	stats := DocumentStatistics{
+		TotalPages: len(doc.Pages),
+	}
+
+	for _, page := range doc.Pages {
+		stats.TotalParagraphs += len(page.Paragraphs)
+		stats.TotalTables += len(page.Tables)
+
+		for _, para := range page.Paragraphs {
+			if para.IsHeading {
+				stats.TotalHeadings++
+			}
+
+			for _, line := range para.Lines {
+				stats.TotalWords += len(line.Words)
+				for _, word := range line.Words {
+					stats.TotalCharacters += len(word.Text)
+				}
+			}
+		}
+	}
+
+	return stats
+}
+
+// logProcessingMetrics logs the processing metrics in a readable format
+func logProcessingMetrics(metrics ProcessingMetrics) {
+	log.Println("┌─────────────────────────────────────────────┐")
+	log.Println("│ PDF Processing Metrics                      │")
+	log.Println("├─────────────────────────────────────────────┤")
+	log.Printf("│ Total Time: %-31v │\n", metrics.TotalTime.Round(time.Millisecond))
+	log.Println("├─────────────────────────────────────────────┤")
+	log.Println("│ Document Statistics                         │")
+	log.Println("├─────────────────────────────────────────────┤")
+	log.Printf("│   Pages:      %-29d │\n", metrics.Statistics.TotalPages)
+	log.Printf("│   Paragraphs: %-29d │\n", metrics.Statistics.TotalParagraphs)
+	log.Printf("│   Headings:   %-29d │\n", metrics.Statistics.TotalHeadings)
+	log.Printf("│   Tables:     %-29d │\n", metrics.Statistics.TotalTables)
+	log.Printf("│   Words:      %-29d │\n", metrics.Statistics.TotalWords)
+	log.Printf("│   Characters: %-29d │\n", metrics.Statistics.TotalCharacters)
+	log.Println("├─────────────────────────────────────────────┤")
+	log.Println("│ Per-Page Timing                             │")
+	log.Println("├─────────────────────────────────────────────┤")
+
+	// Show timing for each page
+	for _, pm := range metrics.PageExtractions {
+		log.Printf("│   Page %2d: %-30v │\n", pm.PageNumber, pm.Duration.Round(time.Millisecond))
+	}
+
+	// Show average time per page
+	if len(metrics.PageExtractions) > 0 {
+		avgTime := metrics.TotalTime / time.Duration(len(metrics.PageExtractions))
+		log.Println("├─────────────────────────────────────────────┤")
+		log.Printf("│ Avg per page: %-28v │\n", avgTime.Round(time.Millisecond))
+	}
+
+	log.Println("└─────────────────────────────────────────────┘")
+}
+
+// ConvertFileWithMetrics converts a PDF and returns both markdown and metrics
+func (c *Converter) ConvertFileWithMetrics(filePath string) (string, ProcessingMetrics, error) {
+	startTime := time.Now()
+	openStart := time.Now()
+
+	// Open the PDF document
+	doc, err := c.instance.OpenDocument(&requests.OpenDocument{
+		FilePath: &filePath,
+	})
+	if err != nil {
+		return "", ProcessingMetrics{}, errors.Wrap(err, "failed to open PDF document")
+	}
+	defer c.instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{
+		Document: doc.Document,
+	})
+
+	documentOpenTime := time.Since(openStart)
+
+	// Get page count
+	pageCount, err := c.instance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{
+		Document: doc.Document,
+	})
+	if err != nil {
+		return "", ProcessingMetrics{}, errors.Wrap(err, "failed to get page count")
+	}
+
+	// Extract all pages with timing
+	document := &Document{
+		Pages: make([]Page, 0, pageCount.PageCount),
+	}
+
+	var pageMetrics []PageMetrics
+	for i := 0; i < pageCount.PageCount; i++ {
+		pageStart := time.Now()
+		page, err := c.extractPage(doc.Document, i)
+		pageDuration := time.Since(pageStart)
+
+		if err != nil {
+			return "", ProcessingMetrics{}, errors.Wrapf(err, "failed to extract page %d", i+1)
+		}
+		document.Pages = append(document.Pages, *page)
+
+		pageMetrics = append(pageMetrics, PageMetrics{
+			PageNumber: i + 1,
+			Duration:   pageDuration,
+		})
+	}
+
+	// Calculate statistics
+	stats := calculateDocumentStatistics(document)
+
+	// Generate markdown
+	markdown := document.ToMarkdown(c.config)
+
+	totalTime := time.Since(startTime)
+
+	metrics := ProcessingMetrics{
+		TotalTime:       totalTime,
+		DocumentOpen:    documentOpenTime,
+		PageExtractions: pageMetrics,
+		Statistics:      stats,
+	}
+
+	return markdown, metrics, nil
 }
 
 // GetDocumentInfo returns basic information about a PDF without converting it.
