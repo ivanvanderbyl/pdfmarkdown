@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pdfmarkdown "github.com/Alcova-AI/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
 )
 
 // setupPDFium initialises a pdfium instance for testing.
