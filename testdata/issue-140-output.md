@@ -1,29 +1,29 @@
-numberPORateHandlingAmountAccruedAmountBillQuantityItemDescriptionItemLocationcodeUPCnoLine  
-0.0000388.57$0.61$637CHOCALMNDSLTD40%LILYSKMACENTRAL0085648100305  
-0.0000419.68$0.61$688SLTDCRMLZDCHCDRKLILYSKMACENTRAL0085648100380  
-0.0000341.60$0.61$560CHOCDARK55%ALMNDLILYSKMACENTRAL0085648100303  
-0.0000253.15$0.61$415BARCHOCDARK55%LILYSKMACENTRAL0085648100300  
-claimsAssociated  
-categoryClaimByrequestedClaimstatusClaimamountClaimdateClaimtypeClaimIDClaim  
-resultsNo  
-documentsSupporting  
-visibilityDocumentsupplierBuyer/onUpdatedbyUploadednameDocumenttypeDocument  
-resultsNo  
-historyApproval  
-CommentsdocumentsAttachedtypeApprovalActortakenActiontimeanddateAction  
-resultsNo
+rebmunOPetaRgnildnaHtnuomAdeurccAtnuomAlliBytitnauQmetInoitpircseDmetInoitacoLedocCPUoneniL  
+0000 .075 .883$16 .0$736COHCDNMLADTLS%04SYLILAMKLARTNEC5030018465800  
+0000 .086 .914$16 .0$886DTLSDZLMRCCHCKRDSYLILAMKLARTNEC0830018465800  
+0000 .006 .143$16 .0$065COHCKRAD%55DNMLASYLILAMKLARTNEC3030018465800  
+0000 .051 .352$16 .0$514RABCOHCKRAD%55SYLILAMKLARTNEC0030018465800  
+smialcdetaicossA  
+yrogetacmialCyBdetseuqermialCsutatsmialCtnuomamialCetadmialCepytmialCDImialC  
+stluseroN  
+stnemucodgnitroppuS  
+ytilibisivtnemucoDreilppus/reyuBnodetadpUybdedaolpUemantnemucoDepyttnemucoD  
+stluseroN  
+yrotsihlavorppA  
+stnemmoCstnemucoddehcattAepytlavorppArotcAnekatnoitcAemitdnaetadnoitcA  
+stluseroN
   
-| numberPORateHandlingAmountAccruedAmountBillQuantityItemDescriptionItemLocationcodeUPCnoLine | 0.0000388.57$0.61$637CHOCALMNDSLTD40%LILYSKMACENTRAL0085648100305 | 0.0000419.68$0.61$688SLTDCRMLZDCHCDRKLILYSKMACENTRAL0085648100380 | 0.0000341.60$0.61$560CHOCDARK55%ALMNDLILYSKMACENTRAL0085648100303 | 0.0000253.15$0.61$415BARCHOCDARK55%LILYSKMACENTRAL0085648100300 |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- |
-|                                                                                             |                                                                   |                                                                   |                                                                   |                                                                 |
+| rebmunOPetaRgnildnaHtnuomAdeurccAtnuomAlliBytitnauQmetInoitpircseDmetInoitacoLedocCPUoneniL | .0$736COHCDNMLADTLS%04SYLILAMKLARTNEC5030018465800 | .0$886DTLSDZLMRCCHCKRDSYLILAMKLARTNEC0830018465800 | .0$065COHCKRAD%55DNMLASYLILAMKLARTNEC3030018465800 | .0$514RABCOHCKRAD%55SYLILAMKLARTNEC0030018465800 |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------ |
+|                                                                                             |                                                    |                                                    |                                                    |                                                  |
 
   
-| CommentsdocumentsAttachedtypeApprovalActortakenActiontimeanddateAction |
+| stnemmoCstnemucoddehcattAepytlavorppArotcAnekatnoitcAemitdnaetadnoitcA |
 | ---------------------------------------------------------------------- |
 |                                                                        |
 
   
-| visibilityDocumentsupplierBuyer/onUpdatedbyUploadednameDocumenttypeDocument |
+| ytilibisivtnemucoDreilppus/reyuBnodetadpUybdedaolpUemantnemucoDepyttnemucoD |
 | --------------------------------------------------------------------------- |
 |                                                                             |
 

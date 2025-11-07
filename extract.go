@@ -324,9 +324,213 @@ func extractEnrichedChars(instance pdfium.Pdfium, textPage references.FPDF_TEXTP
 }
 
 // groupCharsIntoWords groups characters into words based on spacing.
+// isLowerCase returns true if the rune is a lowercase letter
+func isLowerCase(r rune) bool {
+	return r >= 'a' && r <= 'z'
+}
+
+// isUpperCase returns true if the rune is an uppercase letter
+func isUpperCase(r rune) bool {
+	return r >= 'A' && r <= 'Z'
+}
+
+// isDigit returns true if the rune is a digit
+func isDigit(r rune) bool {
+	return r >= '0' && r <= '9'
+}
+
+// isAlpha returns true if the rune is a letter
+func isAlpha(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+// isCurrency returns true if the rune is a currency symbol
+func isCurrency(r rune) bool {
+	return r == '$' || r == '€' || r == '£' || r == '¥' || r == '¢'
+}
+
+// isPunctuation returns true if the rune is punctuation
+func isPunctuation(r rune) bool {
+	return r == '.' || r == ',' || r == ';' || r == ':' || r == '!' || r == '?'
+}
+
+// calculateAverageCharWidth calculates the average character width for a set of chars
+func calculateAverageCharWidth(chars []EnrichedChar) float64 {
+	if len(chars) == 0 {
+		return 0
+	}
+	var totalWidth float64
+	for _, char := range chars {
+		totalWidth += char.Box.Width()
+	}
+	return totalWidth / float64(len(chars))
+}
+
+// detectWordBoundaries detects word boundaries in chars without requiring whitespace
+// Returns indices where word boundaries should be inserted
+// This is CONSERVATIVE and only splits on explicit whitespace or special characters
+func detectWordBoundaries(chars []EnrichedChar) []int {
+	if len(chars) <= 1 {
+		return nil
+	}
+
+	var boundaries []int
+
+	for i := 1; i < len(chars); i++ {
+		prev, curr := chars[i-1], chars[i]
+
+		// 1. Whitespace is always a boundary
+		if curr.Text == ' ' || curr.Text == '\t' || curr.Text == '\n' || curr.Text == '\r' {
+			boundaries = append(boundaries, i)
+			continue
+		}
+
+		// 2. Special characters (currency, punctuation) start new words
+		if isCurrency(curr.Text) || isPunctuation(curr.Text) {
+			boundaries = append(boundaries, i)
+			continue
+		}
+
+		// 3. After currency/punctuation, start new word
+		if isCurrency(prev.Text) || isPunctuation(prev.Text) {
+			boundaries = append(boundaries, i)
+			continue
+		}
+
+		// NOTE: Gap-based, case-transition, and digit/letter boundary detection
+		// has been DISABLED for normal horizontal text to avoid breaking normal PDFs.
+		// These heuristics are only applied in rotation-aware detection for
+		// rotated text (see detectWordBoundariesRotationAware).
+	}
+
+	return boundaries
+}
+
+// isRotatedText checks if a character is rotated (not horizontal)
+// angle is in radians (0 = horizontal, π/2 ≈ 1.57 = 90°, π ≈ 3.14 = 180°, 3π/2 ≈ 4.71 = 270°)
+func isRotatedText(angle float32) bool {
+	// Convert radians to degrees
+	degrees := float64(angle) * 180.0 / math.Pi
+
+	// Normalize to 0-360 range
+	for degrees < 0 {
+		degrees += 360
+	}
+	for degrees >= 360 {
+		degrees -= 360
+	}
+
+	// Consider text rotated if angle is not close to 0 or 180 degrees
+	// Allow 10 degree tolerance
+	tolerance := 10.0
+	return !(degrees < tolerance || degrees > 360-tolerance || (degrees > 180-tolerance && degrees < 180+tolerance))
+}
+
+// shouldReverseCharOrder checks if character order should be reversed based on rotation
+func shouldReverseCharOrder(angle float32) bool {
+	degrees := float64(angle) * 180.0 / math.Pi
+	for degrees < 0 {
+		degrees += 360
+	}
+	for degrees >= 360 {
+		degrees -= 360
+	}
+
+	// Reverse for 270° rotation (bottom-to-top text)
+	// Allow 45 degree range: 225-315 degrees
+	return degrees > 225 && degrees < 315
+}
+
+// detectWordBoundariesRotationAware detects boundaries considering rotation
+func detectWordBoundariesRotationAware(chars []EnrichedChar) []int {
+	if len(chars) <= 1 {
+		return nil
+	}
+
+	var boundaries []int
+
+	// Check if text is rotated
+	isRotated := false
+	if len(chars) > 0 {
+		isRotated = isRotatedText(chars[0].Angle)
+	}
+
+	if isRotated {
+		// For rotated text (90°, 270°), use Y-axis gaps instead of X-axis
+		avgCharHeight := 0.0
+		for _, char := range chars {
+			avgCharHeight += char.Box.Height()
+		}
+		avgCharHeight /= float64(len(chars))
+
+		for i := 1; i < len(chars); i++ {
+			prev, curr := chars[i-1], chars[i]
+
+			// For rotated text, check Y-axis gap
+			gapY := math.Abs(curr.Box.Y0 - prev.Box.Y1)
+			if avgCharHeight > 0 && gapY > avgCharHeight*0.3 {
+				boundaries = append(boundaries, i)
+				continue
+			}
+
+			// Still apply other heuristics
+			if curr.Text == ' ' || curr.Text == '\t' || curr.Text == '\n' || curr.Text == '\r' {
+				boundaries = append(boundaries, i)
+				continue
+			}
+
+			if isLowerCase(prev.Text) && isUpperCase(curr.Text) {
+				boundaries = append(boundaries, i)
+				continue
+			}
+
+			if isDigit(prev.Text) && isAlpha(curr.Text) {
+				boundaries = append(boundaries, i)
+				continue
+			}
+
+			if isAlpha(prev.Text) && isDigit(curr.Text) {
+				boundaries = append(boundaries, i)
+				continue
+			}
+		}
+	} else {
+		// For normal text, use X-axis gaps (existing logic)
+		boundaries = detectWordBoundaries(chars)
+	}
+
+	return boundaries
+}
+
 func groupCharsIntoWords(chars []EnrichedChar) []EnrichedWord {
 	if len(chars) == 0 {
 		return nil
+	}
+
+	// Detect word boundaries BEFORE reversing (on original coordinates)
+	boundaries := detectWordBoundariesRotationAware(chars)
+
+	// Check if we need to reverse character order (for 270° rotated text)
+	shouldReverse := len(chars) > 0 && shouldReverseCharOrder(chars[0].Angle)
+	if shouldReverse {
+		// Reverse the chars slice
+		reversed := make([]EnrichedChar, len(chars))
+		for i, char := range chars {
+			reversed[len(chars)-1-i] = char
+		}
+		chars = reversed
+
+		// Reverse the boundary indices too
+		reversedBoundaries := make([]int, len(boundaries))
+		for i, b := range boundaries {
+			reversedBoundaries[i] = len(chars) - b
+		}
+		boundaries = reversedBoundaries
+	}
+
+	boundarySet := make(map[int]bool)
+	for _, b := range boundaries {
+		boundarySet[b] = true
 	}
 
 	var words []EnrichedWord
@@ -336,6 +540,14 @@ func groupCharsIntoWords(chars []EnrichedChar) []EnrichedWord {
 
 	for i, char := range chars {
 		isWhitespace := char.Text == ' ' || char.Text == '\t' || char.Text == '\n' || char.Text == '\r'
+		isBoundary := boundarySet[i]
+
+		// Start new word at boundary (but skip if it's whitespace)
+		if isBoundary && !isWhitespace && len(currentWord) > 0 {
+			words = append(words, aggregateWord(currentWord, wordBox))
+			currentWord = nil
+			wordStarted = false
+		}
 
 		if !isWhitespace {
 			if !wordStarted {
