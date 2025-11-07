@@ -16,17 +16,32 @@ func buildParagraphs(words []EnrichedWord, pageWidth float64, config Config) []P
 
 	// If no rotation detected, create single block with all words
 	if len(textBlocks) == 0 {
-		// Sort words by baseline (Y position), then X position
+		// Sort words by visual position (Y overlap, then X position)
 		sortedWords := make([]EnrichedWord, len(words))
 		copy(sortedWords, words)
 		sort.Slice(sortedWords, func(i, j int) bool {
-			// Use baseline for better line grouping
-			baselineDiff := math.Abs(sortedWords[i].Baseline - sortedWords[j].Baseline)
-			if baselineDiff < 3 { // Same line threshold
-				return sortedWords[i].Box.X0 < sortedWords[j].Box.X0
+			wordI := sortedWords[i]
+			wordJ := sortedWords[j]
+
+			// Check if words are on the same visual line using Y-coordinate overlap
+			overlapY0 := math.Max(wordI.Box.Y0, wordJ.Box.Y0)
+			overlapY1 := math.Min(wordI.Box.Y1, wordJ.Box.Y1)
+			overlapHeight := overlapY1 - overlapY0
+
+			minHeight := math.Min(wordI.Box.Height(), wordJ.Box.Height())
+
+			// If boxes overlap vertically by >30%, they're on the same visual line
+			// Sort by X position (left to right)
+			if overlapHeight > minHeight*0.3 {
+				return wordI.Box.X0 < wordJ.Box.X0
 			}
-			return sortedWords[i].Baseline < sortedWords[j].Baseline
+
+			// Different lines - sort by Y position (top to bottom)
+			// Use top of bounding box for more reliable sorting
+			return wordI.Box.Y0 < wordJ.Box.Y0
 		})
+
+		// Deliberately left empty - debug code removed
 
 		lines := groupWordsIntoLinesBaseline(sortedWords)
 
@@ -129,7 +144,8 @@ func groupWordsIntoLines(words []EnrichedWord) []Line {
 	return lines
 }
 
-// groupWordsIntoLinesBaseline groups words into lines using baseline-aware algorithm
+// groupWordsIntoLinesBaseline groups words into lines using visual overlap
+// Uses Y-coordinate bounding box overlap as the primary signal for same-line detection
 func groupWordsIntoLinesBaseline(words []EnrichedWord) []Line {
 	if len(words) == 0 {
 		return nil
@@ -149,15 +165,32 @@ func groupWordsIntoLinesBaseline(words []EnrichedWord) []Line {
 			baseline = word.Baseline
 			xHeight = word.XHeight
 		} else {
-			// Check if word belongs to current line using baseline and x-height
+			// Use VISUAL POSITIONING to determine if word is on the same line
+			// Calculate the vertical center of both the word and the current line
+			lineCenterY := (lineBox.Y0 + lineBox.Y1) / 2
+			wordCenterY := (word.Box.Y0 + word.Box.Y1) / 2
+
+			// Calculate vertical distance between centers
+			centerDistance := math.Abs(wordCenterY - lineCenterY)
+
+			// Average height for reference
+			avgHeight := (lineBox.Height() + word.Box.Height()) / 2
+
+			// Words are on the same visual line if their centers are within 1.0× of average height
+			// This is very lenient to handle cases where small elements (hyphens, periods)
+			// are positioned slightly differently but visually on the same line
+			visuallySameLine := centerDistance < avgHeight*1.0
+
+			// Baseline check as fallback
 			baselineDiff := math.Abs(word.Baseline - baseline)
-			threshold := 0.4 * xHeight // Adaptive threshold based on x-height
-
+			threshold := 0.6 * xHeight
 			if threshold == 0 {
-				threshold = 3.0 // Fallback to fixed threshold
+				threshold = 5.0
 			}
+			baselineClose := baselineDiff < threshold
 
-			if baselineDiff < threshold {
+			// Keep on same line if EITHER visually same line OR baseline close
+			if visuallySameLine || baselineClose {
 				// Add to current line
 				currentLine = append(currentLine, word)
 				lineBox.X0 = math.Min(lineBox.X0, word.Box.X0)
