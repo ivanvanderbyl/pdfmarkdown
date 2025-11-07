@@ -3,13 +3,25 @@ package pdfmarkdown
 import (
 	"math"
 	"sort"
+	"strings"
 	"testing"
 )
 
 // TestLineGrouping_ListItemScenario tests the exact scenario from SOA PDF
 func TestLineGrouping_ListItemScenario(t *testing.T) {
-	// Recreate ALL words from Lines 2, 3, 4 from the actual debug output
+	// Recreate ALL words from Lines 1, 2, 3, 4 to see if Line 1 affects grouping
 	words := []EnrichedWord{
+		// Line 1: "Your current holdings are structured across the following entities:"
+		{Text: "Your", Box: Rect{X0: 72.03, Y0: 250.66, X1: 94.37, Y1: 258.78}, Baseline: 256.58, FontSize: 14.67, XHeight: 8.0},
+		{Text: "current", Box: Rect{X0: 97.69, Y0: 250.85, X1: 131.40, Y1: 258.78}, Baseline: 256.58, FontSize: 14.67, XHeight: 8.0},
+		{Text: "holdings", Box: Rect{X0: 135.25, Y0: 250.66, X1: 175.05, Y1: 260.95}, Baseline: 258.75, FontSize: 14.67, XHeight: 8.0},
+		{Text: "are", Box: Rect{X0: 178.93, Y0: 252.74, X1: 193.97, Y1: 258.78}, Baseline: 256.58, FontSize: 14.67, XHeight: 8.0},
+		{Text: "structured", Box: Rect{X0: 197.81, Y0: 250.66, X1: 245.56, Y1: 258.78}, Baseline: 256.58, FontSize: 14.67, XHeight: 8.0},
+		{Text: "across", Box: Rect{X0: 249.79, Y0: 252.74, X1: 281.35, Y1: 258.78}, Baseline: 256.58, FontSize: 14.67, XHeight: 8.0},
+		{Text: "the", Box: Rect{X0: 285.03, Y0: 250.66, X1: 299.66, Y1: 258.78}, Baseline: 256.58, FontSize: 14.67, XHeight: 8.0},
+		{Text: "following", Box: Rect{X0: 303.26, Y0: 250.53, X1: 345.20, Y1: 260.95}, Baseline: 258.75, FontSize: 14.67, XHeight: 8.0},
+		{Text: "entities:", Box: Rect{X0: 349.40, Y0: 250.66, X1: 385.91, Y1: 258.78}, Baseline: 256.58, FontSize: 14.67, XHeight: 8.0},
+
 		// Line 2: "1. Smith Family Trust"
 		{Text: "1.", Box: Rect{X0: 91.20, Y0: 277.17, X1: 98.21, Y1: 285.20}, Baseline: 283.00, FontSize: 14.67, XHeight: 8.0},
 		{Text: "Smith", Box: Rect{X0: 108.40, Y0: 277.07, X1: 137.79, Y1: 285.33}, Baseline: 283.13, FontSize: 14.67, XHeight: 8.0},
@@ -70,9 +82,34 @@ func TestLineGrouping_ListItemScenario(t *testing.T) {
 		t.Logf("Line %d: %q", li, lineText)
 	}
 
-	// Expected: All words on ONE line since they all overlap
-	if len(lines) != 1 {
-		t.Errorf("Expected 1 line, got %d", len(lines))
-		t.Logf("ERROR: Words with Y-overlap should be grouped on same line")
+	// Expected: 2 lines
+	// Line 1: "Your current holdings..." (Y ~250-261)
+	// Line 2: "1. Smith Family Trust (SF0005-001) - Discretionary..." (Y ~277-287)
+	if len(lines) != 2 {
+		t.Errorf("Expected 2 lines, got %d", len(lines))
+		for i, line := range lines {
+			lineText := ""
+			for _, w := range line.Words {
+				lineText += w.Text + " "
+			}
+			t.Logf("  Line %d (%d words): %s", i, len(line.Words), lineText)
+		}
+	}
+
+	// Verify list item line has all its parts together
+	if len(lines) >= 2 {
+		listLine := lines[1]
+		listText := ""
+		for _, w := range listLine.Words {
+			listText += w.Text + " "
+		}
+
+		// Should contain all parts of the list item
+		if !strings.Contains(listText, "1.") || !strings.Contains(listText, "Trust") ||
+			!strings.Contains(listText, "(SF0005-001)") || !strings.Contains(listText, "distribution") {
+			t.Errorf("List item incomplete: %q", listText)
+		} else {
+			t.Logf("✓ List item correctly grouped: %q", strings.TrimSpace(listText))
+		}
 	}
 }

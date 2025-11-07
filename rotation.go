@@ -157,20 +157,31 @@ func groupWordsIntoHorizontalLines(words []EnrichedWord) []Line {
 		return nil
 	}
 
-	// Sort words by baseline (Y position)
+	// Sort words by VISUAL POSITION (Y-overlap, then X)
+	// Same logic as structure.go for consistency
 	sortedWords := make([]EnrichedWord, len(words))
 	copy(sortedWords, words)
 
 	sort.Slice(sortedWords, func(i, j int) bool {
-		// Use baseline for better line grouping
-		baselineDiff := math.Abs(sortedWords[i].Baseline - sortedWords[j].Baseline)
-		if baselineDiff < 3 { // Same line threshold
-			return sortedWords[i].Box.X0 < sortedWords[j].Box.X0
+		wordI := sortedWords[i]
+		wordJ := sortedWords[j]
+
+		// Check Y-coordinate overlap
+		overlapY0 := math.Max(wordI.Box.Y0, wordJ.Box.Y0)
+		overlapY1 := math.Min(wordI.Box.Y1, wordJ.Box.Y1)
+		overlapHeight := overlapY1 - overlapY0
+		minHeight := math.Min(wordI.Box.Height(), wordJ.Box.Height())
+
+		// Same visual line - sort by X position
+		if overlapHeight > minHeight*0.3 {
+			return wordI.Box.X0 < wordJ.Box.X0
 		}
-		return sortedWords[i].Baseline < sortedWords[j].Baseline
+
+		// Different lines - sort by Y position
+		return wordI.Box.Y0 < wordJ.Box.Y0
 	})
 
-	// Group into lines by baseline proximity
+	// Group into lines using VISUAL CENTER-BASED approach
 	var lines []Line
 	var currentLine []EnrichedWord
 	var lineBox Rect
@@ -184,15 +195,29 @@ func groupWordsIntoHorizontalLines(words []EnrichedWord) []Line {
 			baseline = word.Baseline
 			xHeight = word.XHeight
 		} else {
-			// Check if word belongs to current line using baseline and x-height
-			baselineDiff := math.Abs(word.Baseline - baseline)
-			threshold := 0.4 * xHeight // Adaptive threshold based on x-height
+			// Use VISUAL CENTER-BASED grouping (same as structure.go)
+			lineCenterY := (lineBox.Y0 + lineBox.Y1) / 2
+			wordCenterY := (word.Box.Y0 + word.Box.Y1) / 2
+			centerDistance := math.Abs(wordCenterY - lineCenterY)
+			avgHeight := (lineBox.Height() + word.Box.Height()) / 2
 
-			if baselineDiff < threshold {
+			visuallySameLine := centerDistance < avgHeight*1.0
+
+			// Baseline check as fallback
+			baselineDiff := math.Abs(word.Baseline - baseline)
+			threshold := 0.6 * xHeight
+			if threshold == 0 {
+				threshold = 5.0
+			}
+			baselineClose := baselineDiff < threshold
+
+			if visuallySameLine || baselineClose {
 				// Same line
 				currentLine = append(currentLine, word)
-				lineBox = mergeRects(lineBox, word.Box)
-				// Update baseline to weighted average
+				lineBox.X0 = math.Min(lineBox.X0, word.Box.X0)
+				lineBox.Y0 = math.Min(lineBox.Y0, word.Box.Y0)
+				lineBox.X1 = math.Max(lineBox.X1, word.Box.X1)
+				lineBox.Y1 = math.Max(lineBox.Y1, word.Box.Y1)
 				baseline = (baseline*float64(len(currentLine)-1) + word.Baseline) / float64(len(currentLine))
 			} else {
 				// New line

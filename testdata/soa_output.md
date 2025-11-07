@@ -27,12 +27,10 @@ structure.
   
 ### Entity Structure
 Your current holdings are structured across the following entities:
-1. Smith Family Trust
--
-(SF0005-001) Discretionary trust for income distribution
-2. John's Account -(SF0005-002) Individual holdings
-3. Jane's Account -(SF0005-003) Individual holdings
-4. Smith SMSF -Family (SF0005-004) Self-managed superannuation fund
+1. Smith Family Trust (SF0005-001) - Discretionary trust for income distribution
+2. John's Account (SF0005-002) - Individual holdings
+3. Jane's Account (SF0005-003) - Individual holdings
+4. Smith Family SMSF (SF0005-004) - Self-managed superannuation fund
   
 ### Financial Accounts
 Smith Family Joint Savings
@@ -87,8 +85,7 @@ Implementation: Authorized under existing Transact access (CFR-ACC001-FA002).
 ## FEES & REMUNERATION
   
 ● Initial advice fee: $3,300 (inc. GST)  
-●  
-Ongoing portfolio management: 0.85% p.a. on funds under advice  
+● Ongoing portfolio management: 0.85% p.a. on funds under advice  
 ● Transaction fees: As per platform fee schedule
   
 ---
