@@ -467,9 +467,24 @@ func createTable(page *Page, cells []CellBBox, words []EnrichedWord) Table {
 	// Extract content for each cell
 	tableRows := make([]TableRow, 0, len(rows))
 	maxCols := 0
+	hasSyntheticLeadingColumn := false
 
 	for _, row := range rows {
 		tableCells := make([]TableCell, 0, len(row.cells))
+		rowBottom := row.cells[0].Bottom
+		for _, cell := range row.cells[1:] {
+			if cell.Bottom > rowBottom {
+				rowBottom = cell.Bottom
+			}
+		}
+
+		if leadingCell, ok := buildLeadingRowCell(row.cells, row.top, rowBottom, words); ok {
+			tableCells = append(tableCells, leadingCell)
+			hasSyntheticLeadingColumn = true
+			if leadingCell.BBox.X0 < bbox.X0 {
+				bbox.X0 = leadingCell.BBox.X0
+			}
+		}
 
 		for _, cellBBox := range row.cells {
 			// Find words within this cell (with small tolerance for boundary)
@@ -524,10 +539,10 @@ func createTable(page *Page, cells []CellBBox, words []EnrichedWord) Table {
 
 		// Calculate row bounding box
 		rowBBox := CellBBox{
-			X0:     row.cells[0].X0,
+			X0:     tableCells[0].BBox.X0,
 			Top:    row.top,
-			X1:     row.cells[len(row.cells)-1].X1,
-			Bottom: row.cells[0].Bottom,
+			X1:     tableCells[len(tableCells)-1].BBox.X1,
+			Bottom: rowBottom,
 		}
 
 		tableRows = append(tableRows, TableRow{
@@ -551,6 +566,23 @@ func createTable(page *Page, cells []CellBBox, words []EnrichedWord) Table {
 		}
 	}
 
+	if hasSyntheticLeadingColumn {
+		for i := range nonEmptyRows {
+			for len(nonEmptyRows[i].Cells) < maxCols {
+				nonEmptyRows[i].Cells = append([]TableCell{{
+					BBox: CellBBox{
+						X0:     bbox.X0,
+						Top:    nonEmptyRows[i].BBox.Top,
+						X1:     nonEmptyRows[i].BBox.X0,
+						Bottom: nonEmptyRows[i].BBox.Bottom,
+					},
+					Content: "",
+				}}, nonEmptyRows[i].Cells...)
+			}
+			nonEmptyRows[i].BBox.X0 = bbox.X0
+		}
+	}
+
 	return Table{
 		BBox:    bbox,
 		Rows:    nonEmptyRows,
@@ -558,4 +590,80 @@ func createTable(page *Page, cells []CellBBox, words []EnrichedWord) Table {
 		NumRows: len(nonEmptyRows),
 		NumCols: maxCols,
 	}
+}
+
+func buildLeadingRowCell(cells []CellBBox, rowTop, rowBottom float64, words []EnrichedWord) (TableCell, bool) {
+	if len(cells) == 0 {
+		return TableCell{}, false
+	}
+
+	const tolerance = 1.0
+	firstCell := cells[0]
+	var leadingWords []EnrichedWord
+	for _, word := range words {
+		wordCenterX := (word.Box.X0 + word.Box.X1) / 2
+		wordCenterY := (word.Box.Y0 + word.Box.Y1) / 2
+		if wordCenterX >= firstCell.X0-tolerance {
+			continue
+		}
+		if wordCenterY < rowTop-tolerance || wordCenterY > rowBottom+tolerance {
+			continue
+		}
+		leadingWords = append(leadingWords, word)
+	}
+
+	if len(leadingWords) == 0 {
+		return TableCell{}, false
+	}
+
+	sort.Slice(leadingWords, func(i, j int) bool {
+		if math.Abs(leadingWords[i].Box.Y0-leadingWords[j].Box.Y0) < 4.0 {
+			return leadingWords[i].Box.X0 < leadingWords[j].Box.X0
+		}
+		return leadingWords[i].Box.Y0 < leadingWords[j].Box.Y0
+	})
+
+	content := buildWordsContent(leadingWords)
+	if content == "" {
+		return TableCell{}, false
+	}
+
+	cellBox := CellBBox{
+		X0:     leadingWords[0].Box.X0,
+		Top:    rowTop,
+		X1:     firstCell.X0,
+		Bottom: rowBottom,
+	}
+	for _, word := range leadingWords[1:] {
+		if word.Box.X0 < cellBox.X0 {
+			cellBox.X0 = word.Box.X0
+		}
+	}
+
+	return TableCell{
+		BBox:    cellBox,
+		Content: content,
+		Words:   leadingWords,
+	}, true
+}
+
+func buildWordsContent(words []EnrichedWord) string {
+	if len(words) == 0 {
+		return ""
+	}
+
+	var content string
+	for i, word := range words {
+		if i > 0 {
+			prevWord := words[i-1]
+			if word.Box.Y0-prevWord.Box.Y1 > 2.0 {
+				content += "\n"
+			} else {
+				content += " "
+			}
+		}
+		content += word.Text
+	}
+
+	return content
 }

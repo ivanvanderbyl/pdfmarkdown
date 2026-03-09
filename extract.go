@@ -157,6 +157,10 @@ func buildPageStructure(raw *rawPageData, config Config) *Page {
 		resultPage.Tables = tables
 	}
 
+	resultPage.Tables = preferDetectedLedgerTables(resultPage)
+
+	resultPage.Paragraphs = orderParagraphsForPage(paragraphs, columns, resultPage.Tables, raw.pageWidth)
+
 	return resultPage
 }
 
@@ -428,8 +432,11 @@ func detectWordBoundaries(chars []EnrichedChar, generatedSpaces map[int]bool) []
 	}
 
 	var boundaries []int
+	avgCharWidth := calculateAverageCharWidth(chars)
+	gapThreshold := math.Max(2.0, avgCharWidth*0.55)
 
 	for i := 1; i < len(chars); i++ {
+		prev := chars[i-1]
 		curr := chars[i]
 
 		if curr.Text == ' ' || curr.Text == '\t' || curr.Text == '\n' || curr.Text == '\r' {
@@ -441,9 +448,39 @@ func detectWordBoundaries(chars []EnrichedChar, generatedSpaces map[int]bool) []
 			boundaries = append(boundaries, i)
 			continue
 		}
+
+		if hasStrongVisualWordGap(prev, curr, gapThreshold) {
+			boundaries = append(boundaries, i)
+			continue
+		}
 	}
 
 	return boundaries
+}
+
+func hasStrongVisualWordGap(prev, curr EnrichedChar, threshold float64) bool {
+	if threshold <= 0 {
+		return false
+	}
+
+	gap := curr.Box.X0 - prev.Box.X1
+	if gap <= threshold {
+		return false
+	}
+
+	overlapY0 := math.Max(prev.Box.Y0, curr.Box.Y0)
+	overlapY1 := math.Min(prev.Box.Y1, curr.Box.Y1)
+	overlapHeight := overlapY1 - overlapY0
+	minHeight := math.Min(prev.Box.Height(), curr.Box.Height())
+	if minHeight <= 0 || overlapHeight/minHeight < 0.6 {
+		return false
+	}
+
+	if isPunctuation(prev.Text) || isPunctuation(curr.Text) {
+		return false
+	}
+
+	return true
 }
 
 // isRotatedText checks if a character is rotated (not horizontal)

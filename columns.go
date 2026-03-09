@@ -113,7 +113,7 @@ func findSignificantValleys(bins []int, pageWidth float64) []float64 {
 
 	// Find valleys (consecutive bins with density below threshold)
 	const minValleyWidth = 20.0 // Minimum 20 points wide
-	const valleyThreshold = 0.2  // Valley density < 20% of average
+	const valleyThreshold = 0.2 // Valley density < 20% of average
 
 	var valleys []float64
 	var valleyStart int = -1
@@ -177,7 +177,7 @@ func findMaxY(words []EnrichedWord) float64 {
 	return maxY
 }
 
-// determineReadingOrder sorts paragraphs according to reading order with column awareness
+// determineReadingOrder sorts paragraphs according to reading order with column awareness.
 func determineReadingOrder(paragraphs []Paragraph, columns []Column) []Paragraph {
 	if len(paragraphs) == 0 {
 		return paragraphs
@@ -185,12 +185,7 @@ func determineReadingOrder(paragraphs []Paragraph, columns []Column) []Paragraph
 
 	if len(columns) <= 1 {
 		// Single column: simple top-to-bottom
-		sorted := make([]Paragraph, len(paragraphs))
-		copy(sorted, paragraphs)
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].Box.Y0 < sorted[j].Box.Y0
-		})
-		return sorted
+		return sortParagraphsTopToBottom(paragraphs)
 	}
 
 	// Multi-column: read top-to-bottom within each column, left-to-right across columns
@@ -223,6 +218,119 @@ func determineReadingOrder(paragraphs []Paragraph, columns []Column) []Paragraph
 	}
 
 	return ordered
+}
+
+func orderParagraphsForPage(paragraphs []Paragraph, columns []Column, tables []Table, pageWidth float64) []Paragraph {
+	if len(paragraphs) == 0 {
+		return nil
+	}
+
+	if len(columns) <= 1 || isTableDominantPage(tables, pageWidth) {
+		return sortParagraphsTopToBottom(paragraphs)
+	}
+
+	sorted := sortParagraphsTopToBottom(paragraphs)
+	ordered := make([]Paragraph, 0, len(sorted))
+
+	for i := 0; i < len(sorted); {
+		if paragraphColumnSpan(sorted[i], columns) >= 2 {
+			ordered = append(ordered, sorted[i])
+			i++
+			continue
+		}
+
+		j := i
+		for j < len(sorted) && paragraphColumnSpan(sorted[j], columns) < 2 {
+			j++
+		}
+
+		ordered = append(ordered, determineReadingOrder(sorted[i:j], columns)...)
+		i = j
+	}
+
+	return ordered
+}
+
+func sortParagraphsTopToBottom(paragraphs []Paragraph) []Paragraph {
+	sorted := make([]Paragraph, len(paragraphs))
+	copy(sorted, paragraphs)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Box.Y0 == sorted[j].Box.Y0 {
+			return sorted[i].Box.X0 < sorted[j].Box.X0
+		}
+		return sorted[i].Box.Y0 < sorted[j].Box.Y0
+	})
+	return sorted
+}
+
+func isTableDominantPage(tables []Table, pageWidth float64) bool {
+	if len(tables) < 2 || pageWidth <= 0 {
+		return false
+	}
+
+	wideTables := 0
+	totalRows := 0
+	numericBands := 0
+
+	for _, table := range tables {
+		if table.NumCols < 3 {
+			continue
+		}
+
+		widthRatio := (table.BBox.X1 - table.BBox.X0) / pageWidth
+		if widthRatio < 0.6 {
+			continue
+		}
+
+		wideTables++
+		rows := table.NumRows
+		if rows == 0 {
+			rows = len(table.Rows)
+		}
+		totalRows += rows
+		if tableLooksNumericBand(table) || table.NumCols >= 5 {
+			numericBands++
+		}
+	}
+
+	return wideTables >= 2 && totalRows >= 6 && numericBands > 0
+}
+
+func tableLooksNumericBand(table Table) bool {
+	for _, row := range table.Rows {
+		numericCells := 0
+		for _, cell := range row.Cells {
+			if looksDataLikeCell(cell.Content) {
+				numericCells++
+			}
+		}
+		if numericCells >= max(2, table.NumCols/2) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func paragraphColumnSpan(para Paragraph, columns []Column) int {
+	spans := 0
+	for _, col := range columns {
+		overlap := math.Min(para.Box.X1, col.Box.X1) - math.Max(para.Box.X0, col.Box.X0)
+		if overlap <= 0 {
+			continue
+		}
+
+		width := math.Min(para.Box.Width(), col.Box.Width())
+		if width <= 0 {
+			continue
+		}
+
+		if overlap/width > 0.2 {
+			spans++
+		}
+	}
+
+	return spans
 }
 
 // CenterX returns the horizontal center of a paragraph's bounding box

@@ -3,9 +3,10 @@ package pdfmarkdown
 import (
 	"math"
 	"sort"
+	"strings"
 )
 
-// buildParagraphs groups words into lines and paragraphs with rotation and column awareness.
+// buildParagraphs groups words into lines and paragraphs with rotation awareness.
 func buildParagraphs(words []EnrichedWord, pageWidth float64, config Config) []Paragraph {
 	if len(words) == 0 {
 		return nil
@@ -71,11 +72,7 @@ func buildParagraphs(words []EnrichedWord, pageWidth float64, config Config) []P
 	// Group lines into paragraphs with adaptive spacing
 	paragraphs := groupLinesIntoParagraphsAdaptive(allLines, pageWidth)
 
-	// Detect columns for reading order
-	columns := detectColumns(words, pageWidth)
-
-	// Determine reading order with column awareness
-	paragraphs = determineReadingOrder(paragraphs, columns)
+	paragraphs = healWrappedParagraphLines(paragraphs, pageWidth)
 
 	// Detect heading levels
 	detectHeadings(paragraphs, config)
@@ -139,10 +136,153 @@ func buildParagraphsNoDetection(words []EnrichedWord, pageWidth float64, config 
 
 	paragraphs := groupLinesIntoParagraphsAdaptive(allLines, pageWidth)
 
-	columns := detectColumns(words, pageWidth)
-	paragraphs = determineReadingOrder(paragraphs, columns)
+	paragraphs = healWrappedParagraphLines(paragraphs, pageWidth)
 
 	return paragraphs
+}
+
+func healWrappedParagraphLines(paragraphs []Paragraph, pageWidth float64) []Paragraph {
+	for i := range paragraphs {
+		paragraphs[i].Lines = healWrappedLines(paragraphs[i].Lines)
+		if len(paragraphs[i].Lines) == 0 {
+			continue
+		}
+
+		paragraphs[i].Box = paragraphs[i].Lines[0].Box
+		for _, line := range paragraphs[i].Lines[1:] {
+			paragraphs[i].Box.X0 = math.Min(paragraphs[i].Box.X0, line.Box.X0)
+			paragraphs[i].Box.Y0 = math.Min(paragraphs[i].Box.Y0, line.Box.Y0)
+			paragraphs[i].Box.X1 = math.Max(paragraphs[i].Box.X1, line.Box.X1)
+			paragraphs[i].Box.Y1 = math.Max(paragraphs[i].Box.Y1, line.Box.Y1)
+		}
+		paragraphs[i].Alignment = detectAlignment(paragraphs[i].Lines, pageWidth)
+		paragraphs[i].Indent = paragraphs[i].Lines[0].Box.X0
+	}
+
+	return paragraphs
+}
+
+func healWrappedLines(lines []Line) []Line {
+	if len(lines) <= 1 {
+		return lines
+	}
+
+	healed := make([]Line, 0, len(lines))
+	current := lines[0]
+
+	for i := 1; i < len(lines); i++ {
+		next := lines[i]
+		if shouldMergeWrappedLines(current, next) {
+			current = mergeLines(current, next)
+			continue
+		}
+
+		healed = append(healed, current)
+		current = next
+	}
+
+	healed = append(healed, current)
+	return healed
+}
+
+func shouldMergeWrappedLines(current, next Line) bool {
+	if len(current.Words) == 0 || len(next.Words) == 0 {
+		return false
+	}
+
+	last := current.Words[len(current.Words)-1]
+	first := next.Words[0]
+	if looksProtectedFinancialToken(last.Text) || looksProtectedFinancialToken(first.Text) {
+		return false
+	}
+
+	if !isAlphabeticToken(last.Text) || !isAlphabeticToken(first.Text) {
+		return false
+	}
+
+	lastRunes := []rune(last.Text)
+	firstRunes := []rune(first.Text)
+	if len(lastRunes) < 3 || len(firstRunes) < 2 {
+		return false
+	}
+	if !isLower(lastRunes[len(lastRunes)-1]) || !isLower(firstRunes[0]) {
+		return false
+	}
+
+	avgFontSize := (last.FontSize + first.FontSize) / 2
+	lineGap := next.Box.Y0 - current.Box.Y1
+	if lineGap > avgFontSize*1.2 {
+		return false
+	}
+
+	startAligned := math.Abs(first.Box.X0-last.Box.X0) < avgFontSize*1.5
+	continuationAligned := math.Abs(first.Box.X0-current.Box.X0) < avgFontSize*1.5
+	return startAligned || continuationAligned
+}
+
+func mergeLines(current, next Line) Line {
+	mergedWords := make([]EnrichedWord, 0, len(current.Words)+len(next.Words))
+	mergedWords = append(mergedWords, current.Words...)
+	mergedWords = append(mergedWords, next.Words...)
+
+	lastIdx := len(current.Words) - 1
+	currentLast := mergedWords[lastIdx]
+	nextFirst := mergedWords[lastIdx+1]
+	currentLast.Text += nextFirst.Text
+	currentLast.Box = mergeRects(currentLast.Box, nextFirst.Box)
+	currentLast.Baseline = calculateBaseline(currentLast)
+	currentLast.XHeight = calculateXHeight(currentLast)
+	mergedWords[lastIdx] = currentLast
+	mergedWords = append(mergedWords[:lastIdx+1], mergedWords[lastIdx+2:]...)
+
+	lineBox := current.Box
+	for _, word := range mergedWords {
+		lineBox.X0 = math.Min(lineBox.X0, word.Box.X0)
+		lineBox.Y0 = math.Min(lineBox.Y0, word.Box.Y0)
+		lineBox.X1 = math.Max(lineBox.X1, word.Box.X1)
+		lineBox.Y1 = math.Max(lineBox.Y1, word.Box.Y1)
+	}
+
+	return Line{
+		Words:    mergedWords,
+		Box:      lineBox,
+		Baseline: current.Baseline,
+	}
+}
+
+func isAlphabeticToken(text string) bool {
+	if text == "" {
+		return false
+	}
+	for _, r := range text {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')) {
+			return false
+		}
+	}
+	return true
+}
+
+func looksProtectedFinancialToken(text string) bool {
+	if text == "" {
+		return false
+	}
+
+	if strings.ContainsAny(text, "0123456789$%,.") {
+		return true
+	}
+
+	alpha := 0
+	upper := 0
+	for _, r := range text {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			alpha++
+		}
+		if r >= 'A' && r <= 'Z' {
+			upper++
+		}
+	}
+
+	return alpha > 0 && upper == alpha
 }
 
 // groupWordsIntoLines groups words that are on the same horizontal line.
