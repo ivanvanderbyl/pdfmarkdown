@@ -56,6 +56,8 @@ func buildParagraphs(words []EnrichedWord, pageWidth float64, config Config) []P
 		}
 	}
 
+	textBlocks = recoverSuspiciousTextBlocks(textBlocks)
+
 	// Merge words that are too close together within each line
 	for bi := range textBlocks {
 		for li := range textBlocks[bi].Lines {
@@ -122,6 +124,8 @@ func buildParagraphsNoDetection(words []EnrichedWord, pageWidth float64, config 
 			},
 		}
 	}
+
+	textBlocks = recoverSuspiciousTextBlocks(textBlocks)
 
 	for bi := range textBlocks {
 		for li := range textBlocks[bi].Lines {
@@ -895,10 +899,49 @@ func detectLists(paragraphs []Paragraph) {
 		}
 
 		firstWord := para.Lines[0].Words[0]
-		if firstWord.IsBulletOrNumber() {
+		if firstWord.IsBulletOrNumber() && !looksLikeDashPrefixedSubtitle(*para) {
 			para.IsList = true
 		}
 	}
+}
+
+func looksLikeDashPrefixedSubtitle(para Paragraph) bool {
+	if len(para.Lines) == 0 || len(para.Lines[0].Words) == 0 {
+		return false
+	}
+
+	first := strings.TrimSpace(para.Lines[0].Words[0].Text)
+	if first != "-" && first != "–" && first != "*" &&
+		!strings.HasPrefix(first, "-") && !strings.HasPrefix(first, "–") && !strings.HasPrefix(first, "*") {
+		return false
+	}
+
+	text := para.Text()
+	totalWords := 0
+	for _, line := range para.Lines {
+		totalWords += len(line.Words)
+	}
+	if totalWords < 6 {
+		return false
+	}
+
+	if strings.Contains(text, ":") {
+		return true
+	}
+
+	for lineIdx, line := range para.Lines {
+		start := 0
+		if lineIdx == 0 {
+			start = 1
+		}
+		for _, word := range line.Words[start:] {
+			if isMonthToken(word.Text) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // detectCodeBlocks identifies paragraphs that are code blocks.

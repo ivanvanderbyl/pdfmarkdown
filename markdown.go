@@ -103,6 +103,16 @@ func normalizeDocumentHeadings(doc *Document) {
 
 // convertParagraphToMarkdown converts a single paragraph to markdown using the builder.
 func convertParagraphToMarkdown(md *markdown.Markdown, para Paragraph) {
+	if looksLikeDashPrefixedSubtitleText(para.Text()) {
+		md.PlainText(trimDecorativeDashPrefix(para.Text()))
+		return
+	}
+	if para.IsList && looksLikeDecorativeBulletNoteText(para.Text()) {
+		md.PlainText(trimDecorativeDashPrefix(para.Text()))
+		return
+	}
+
+	para = normalizeParagraphForMarkdown(para)
 	if len(para.Lines) == 0 {
 		return
 	}
@@ -259,6 +269,83 @@ func convertParagraphToMarkdown(md *markdown.Markdown, para Paragraph) {
 			}
 		}
 	}
+}
+
+func normalizeParagraphForMarkdown(para Paragraph) Paragraph {
+	if !looksLikeDashPrefixedSubtitle(para) {
+		return para
+	}
+
+	normalized := para
+	normalized.Lines = append([]Line(nil), para.Lines...)
+	firstLine := normalized.Lines[0]
+	firstLine.Words = append([]EnrichedWord(nil), firstLine.Words...)
+	if len(firstLine.Words) == 0 {
+		normalized.Lines = nil
+		return normalized
+	}
+
+	firstText := strings.TrimLeft(firstLine.Words[0].Text, "-–* ")
+	switch {
+	case firstText == "" && len(firstLine.Words) <= 1:
+		normalized.Lines = nil
+		return normalized
+	case firstText == "":
+		firstLine.Words = firstLine.Words[1:]
+	default:
+		firstLine.Words[0].Text = firstText
+	}
+	firstLine.Box = firstLine.Words[0].Box
+	for _, word := range firstLine.Words[1:] {
+		firstLine.Box = mergeRects(firstLine.Box, word.Box)
+	}
+	normalized.Lines[0] = firstLine
+	normalized.Box = firstLine.Box
+	for _, line := range normalized.Lines[1:] {
+		normalized.Box = mergeRects(normalized.Box, line.Box)
+	}
+
+	return normalized
+}
+
+func looksLikeDashPrefixedSubtitleText(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if !(strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "– ") || strings.HasPrefix(trimmed, "* ")) {
+		return false
+	}
+	if strings.Count(trimmed, " ") < 5 {
+		return false
+	}
+	if strings.Contains(trimmed, ":") {
+		return true
+	}
+
+	for _, token := range strings.Fields(trimmed) {
+		if isMonthToken(token) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func trimDecorativeDashPrefix(text string) string {
+	trimmed := strings.TrimSpace(text)
+	trimmed = strings.TrimPrefix(trimmed, "- ")
+	trimmed = strings.TrimPrefix(trimmed, "– ")
+	trimmed = strings.TrimPrefix(trimmed, "* ")
+	return trimmed
+}
+
+func looksLikeDecorativeBulletNoteText(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if !(strings.HasPrefix(trimmed, "* ") || strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "– ")) {
+		return false
+	}
+	if strings.Count(trimmed, " ") < 12 {
+		return false
+	}
+	return strings.Contains(trimmed, ".")
 }
 
 // wordStyle returns a comparable key representing the inline formatting of a word.

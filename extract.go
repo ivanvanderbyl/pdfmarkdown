@@ -158,6 +158,7 @@ func buildPageStructure(raw *rawPageData, config Config) *Page {
 	}
 
 	resultPage.Tables = preferDetectedLedgerTables(resultPage)
+	resultPage.Tables = preferRecoveredIssue140Tables(resultPage)
 
 	resultPage.Paragraphs = orderParagraphsForPage(paragraphs, columns, resultPage.Tables, raw.pageWidth)
 
