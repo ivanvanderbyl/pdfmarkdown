@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/docmill"
 )
 
 func newTestInstance(t *testing.T) interface{ Close() error } {

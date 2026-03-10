@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/docmill"
 )
 
 func TestTableDetection_SimpleGrid(t *testing.T) {

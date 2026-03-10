@@ -10,7 +10,7 @@ import (
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
 
-	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/docmill"
 )
 
 func TestConverter_WithoutPageBreaks(t *testing.T) {

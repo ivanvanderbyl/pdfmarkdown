@@ -649,3 +649,312 @@ func TestDetectStatementLedgerTable_KeepsNonAmountReferenceTextOutOfAmountColumn
 		t.Fatalf("expected debit column to contain only amount text, got %q", got)
 	}
 }
+
+func TestDetectLists_DoesNotMarkDashPrefixedFinancialSubtitleAsBullet(t *testing.T) {
+	paragraphs := []Paragraph{
+		{
+			Box: Rect{X0: 40, Y0: 20, X1: 420, Y1: 34},
+			Lines: []Line{
+				{
+					Words: []EnrichedWord{
+						makeWord("-", 40, 20, 46, 30),
+						makeWord("Integrated", 54, 20, 110, 30),
+						makeWord("(including", 116, 20, 172, 30),
+						makeWord("Managed", 178, 20, 226, 30),
+						makeWord("Account", 232, 20, 276, 30),
+						makeWord("transactions)", 282, 20, 356, 30),
+						makeWord(":", 362, 20, 366, 30),
+						makeWord("01", 372, 20, 384, 30),
+						makeWord("July", 390, 20, 412, 30),
+						makeWord("2025", 418, 20, 442, 30),
+					},
+				},
+			},
+		},
+	}
+
+	detectLists(paragraphs)
+	if paragraphs[0].IsList {
+		t.Fatalf("expected dash-prefixed financial subtitle not to be marked as list")
+	}
+}
+
+func TestDocumentToMarkdown_StripsDecorativeLeadingDashFromSubtitle(t *testing.T) {
+	doc := &Document{
+		Pages: []Page{
+			{
+				Number: 1,
+				Paragraphs: []Paragraph{
+					{
+						Box: Rect{X0: 40, Y0: 10, X1: 300, Y1: 24},
+						IsHeading: true,
+						HeadingLevel: 1,
+						Lines: []Line{{
+							Words: []EnrichedWord{
+								makeWord("Cash", 40, 10, 66, 20),
+								makeWord("Transaction", 72, 10, 132, 20),
+								makeWord("Listing", 138, 10, 178, 20),
+							},
+						}},
+					},
+					{
+						Box: Rect{X0: 40, Y0: 30, X1: 460, Y1: 44},
+						Lines: []Line{{
+							Words: []EnrichedWord{
+								makeWord("-", 40, 30, 46, 40),
+								makeWord("Integrated", 54, 30, 110, 40),
+								makeWord("(including", 116, 30, 172, 40),
+								makeWord("Managed", 178, 30, 226, 40),
+								makeWord("Account", 232, 30, 276, 40),
+								makeWord("transactions)", 282, 30, 356, 40),
+								makeWord(":", 362, 30, 366, 40),
+								makeWord("01", 372, 30, 384, 40),
+								makeWord("July", 390, 30, 412, 40),
+								makeWord("2025", 418, 30, 442, 40),
+							},
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	markdown := doc.ToMarkdown(DefaultConfig())
+	if strings.Contains(markdown, "\n- Integrated") {
+		t.Fatalf("expected decorative leading dash to be removed from subtitle, got:\n%s", markdown)
+	}
+	if !strings.Contains(markdown, "Integrated (including Managed Account transactions) : 01 July 2025") {
+		t.Fatalf("expected subtitle text to be preserved without leading dash, got:\n%s", markdown)
+	}
+}
+
+func TestDocumentToMarkdown_RendersLongDecorativeBulletNoteAsParagraph(t *testing.T) {
+	doc := &Document{
+		Pages: []Page{
+			{
+				Number: 1,
+				Paragraphs: []Paragraph{
+					{
+						Box: Rect{X0: 40, Y0: 10, X1: 520, Y1: 50},
+						IsList: true,
+						Lines: []Line{
+							{
+								Words: []EnrichedWord{
+									makeWord("*", 40, 10, 46, 20),
+									makeWord("The", 54, 10, 70, 20),
+									makeWord("Integrated", 76, 10, 132, 20),
+									makeWord("Cash", 138, 10, 162, 20),
+									makeWord("Transaction", 168, 10, 228, 20),
+									makeWord("Listing", 234, 10, 274, 20),
+									makeWord("above", 280, 10, 312, 20),
+									makeWord("includes", 318, 10, 362, 20),
+									makeWord("all", 368, 10, 382, 20),
+									makeWord("cash", 388, 10, 412, 20),
+									makeWord("transactions", 418, 10, 486, 20),
+									makeWord("for", 492, 10, 506, 20),
+									makeWord("the", 40, 24, 54, 34),
+									makeWord("period,", 60, 24, 96, 34),
+									makeWord("including", 102, 24, 150, 34),
+									makeWord("cash", 156, 24, 180, 34),
+									makeWord("transactions", 186, 24, 254, 34),
+									makeWord("in", 260, 24, 270, 34),
+									makeWord("your", 276, 24, 300, 34),
+									makeWord("Managed", 306, 24, 354, 34),
+									makeWord("Account.", 360, 24, 408, 34),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	markdown := doc.ToMarkdown(DefaultConfig())
+	if strings.Contains(markdown, "\n- The Integrated Cash Transaction Listing") {
+		t.Fatalf("expected long decorative bullet note to render as paragraph, got:\n%s", markdown)
+	}
+	if !strings.Contains(markdown, "The Integrated Cash Transaction Listing above includes all cash transactions") {
+		t.Fatalf("expected note text to be preserved, got:\n%s", markdown)
+	}
+}
+
+func TestNormalizeRotatedBlock_RequiresIssue140Signals(t *testing.T) {
+	verticalWord := func(text string, x0, y0 float64) EnrichedWord {
+		w := makeWord(text, x0, y0, x0+6, y0+6)
+		w.Rotation = 270
+		return w
+	}
+
+	block := TextBlock{
+		Rotation: 270,
+		Words: []EnrichedWord{
+			verticalWord("A", 10, 10),
+			verticalWord("B", 10, 18),
+			verticalWord("C", 10, 26),
+			verticalWord("D", 10, 34),
+			verticalWord("E", 10, 42),
+			verticalWord("F", 18, 10),
+			verticalWord("G", 18, 18),
+			verticalWord("H", 18, 26),
+		},
+	}
+
+	if shouldNormalizeIssue140RotatedBlock(block) {
+		t.Fatalf("expected ordinary small rotated block not to trigger issue-140 normalization")
+	}
+}
+
+func TestRecoverSuspiciousTextBlock_StitchesFragmentedWords(t *testing.T) {
+	block := TextBlock{
+		Rotation:         0,
+		ReadingDirection: "ltr",
+		Lines: []Line{
+			{
+				Words: []EnrichedWord{
+					makeWord("Assoc", 10, 10, 42, 20),
+					makeWord("iated", 43, 10, 75, 20),
+					makeWord("claims", 84, 10, 122, 20),
+				},
+				Box:      Rect{X0: 10, Y0: 10, X1: 122, Y1: 20},
+				Baseline: 18.5,
+			},
+			{
+				Words: []EnrichedWord{
+					makeWord("Supp", 10, 26, 38, 36),
+					makeWord("orting", 39, 26, 75, 36),
+					makeWord("docu", 84, 26, 110, 36),
+					makeWord("ments", 111, 26, 143, 36),
+				},
+				Box:      Rect{X0: 10, Y0: 26, X1: 146, Y1: 36},
+				Baseline: 34.5,
+			},
+		},
+	}
+	block.Words = append(append([]EnrichedWord(nil), block.Lines[0].Words...), block.Lines[1].Words...)
+
+	recovered, changed := recoverSuspiciousTextBlock(block)
+	if !changed {
+		t.Fatalf("expected fragmented local block to be recovered")
+	}
+
+	got := []string{lineText(recovered.Lines[0]), lineText(recovered.Lines[1])}
+	want := []string{"Associated claims", "Supporting documents"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected recovered line %d: got %q want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestRecoverSuspiciousTextBlock_StitchesFragmentedAmounts(t *testing.T) {
+	block := TextBlock{
+		Rotation:         0,
+		ReadingDirection: "ltr",
+		Lines: []Line{
+			{
+				Words: []EnrichedWord{
+					makeWord("Total", 10, 10, 40, 20),
+					makeWord("$", 46, 10, 50, 20),
+					makeWord("253.", 56, 10, 82, 20),
+					makeWord("1", 88, 10, 92, 20),
+					makeWord("5", 98, 10, 102, 20),
+				},
+				Box:      Rect{X0: 10, Y0: 10, X1: 102, Y1: 20},
+				Baseline: 18.5,
+			},
+		},
+	}
+	block.Words = append([]EnrichedWord(nil), block.Lines[0].Words...)
+
+	recovered, changed := recoverSuspiciousTextBlock(block)
+	if !changed {
+		t.Fatalf("expected fragmented amount block to be recovered")
+	}
+
+	got := lineText(recovered.Lines[0])
+	want := "Total $253.15"
+	if got != want {
+		t.Fatalf("unexpected recovered amount line: got %q want %q", got, want)
+	}
+}
+
+func TestRecoverSuspiciousTextBlock_LeavesHealthyBlockAlone(t *testing.T) {
+	block := TextBlock{
+		Rotation:         0,
+		ReadingDirection: "ltr",
+		Lines: []Line{
+			{
+				Words: []EnrichedWord{
+					makeWord("Associated", 10, 10, 70, 20),
+					makeWord("claims", 76, 10, 112, 20),
+				},
+				Box:      Rect{X0: 10, Y0: 10, X1: 112, Y1: 20},
+				Baseline: 18.5,
+			},
+		},
+	}
+	block.Words = append([]EnrichedWord(nil), block.Lines[0].Words...)
+
+	recovered, changed := recoverSuspiciousTextBlock(block)
+	if changed {
+		t.Fatalf("expected healthy local block to remain unchanged, got %q", lineText(recovered.Lines[0]))
+	}
+	if got := lineText(recovered.Lines[0]); got != "Associated claims" {
+		t.Fatalf("unexpected healthy line text %q", got)
+	}
+}
+
+func TestRecoverSuspiciousEncodingBlock_SuppressesLowConfidenceNoise(t *testing.T) {
+	block := TextBlock{
+		Rotation:         0,
+		ReadingDirection: "ltr",
+		Lines: []Line{
+			{
+				Words: []EnrichedWord{
+					makeWord("Agaaaaa:", 10, 10, 56, 20),
+					makeWord("AAAA", 62, 10, 84, 20),
+					makeWord("7728-AA-2076", 90, 10, 160, 20),
+					makeWord("AabaaAA", 166, 10, 214, 20),
+					makeWord("aambaa6618-647173-54", 220, 10, 340, 20),
+				},
+				Box:      Rect{X0: 10, Y0: 10, X1: 340, Y1: 20},
+				Baseline: 18.5,
+			},
+		},
+	}
+	block.Words = append([]EnrichedWord(nil), block.Lines[0].Words...)
+
+	recovered, changed := recoverSuspiciousEncodingBlock(block)
+	if !changed {
+		t.Fatalf("expected suspicious encoding block to be recovered")
+	}
+
+	got := lineText(recovered.Lines[0])
+	if got != "7728-AA-2076 aambaa6618-647173-54" {
+		t.Fatalf("unexpected recovered encoding line: got %q", got)
+	}
+}
+
+func TestRecoverSuspiciousEncodingBlock_LeavesHealthyText(t *testing.T) {
+	block := TextBlock{
+		Rotation:         0,
+		ReadingDirection: "ltr",
+		Lines: []Line{
+			{
+				Words: []EnrichedWord{
+					makeWord("Approval", 10, 10, 54, 20),
+					makeWord("history", 60, 10, 100, 20),
+				},
+				Box:      Rect{X0: 10, Y0: 10, X1: 100, Y1: 20},
+				Baseline: 18.5,
+			},
+		},
+	}
+	block.Words = append([]EnrichedWord(nil), block.Lines[0].Words...)
+
+	recovered, changed := recoverSuspiciousEncodingBlock(block)
+	if changed {
+		t.Fatalf("expected healthy block to remain unchanged, got %q", lineText(recovered.Lines[0]))
+	}
+}

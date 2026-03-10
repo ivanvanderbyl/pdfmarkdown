@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/docmill"
 	"github.com/klippa-app/go-pdfium/requests"
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
@@ -109,8 +109,6 @@ func TestVisualVerification_Issue140(t *testing.T) {
 	t.Logf("2. Gaps between words are appropriate")
 	t.Logf("3. Number separations (e.g., '0000 .075 .883') are correct")
 }
-
-
 
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr ||

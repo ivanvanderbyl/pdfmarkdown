@@ -2,15 +2,40 @@ package pdfmarkdown_test
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
-	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/docmill"
 	"github.com/klippa-app/go-pdfium/requests"
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
 )
+
+func TestIssue140_DefaultRenderingProducesReadableTable(t *testing.T) {
+	pool, err := webassembly.Init(webassembly.Config{
+		MinIdle:  1,
+		MaxIdle:  1,
+		MaxTotal: 1,
+	})
+	require.NoError(t, err)
+	defer pool.Close()
+
+	instance, err := pool.GetInstance(time.Second * 30)
+	require.NoError(t, err)
+
+	converter := pdfmarkdown.NewConverterWithConfig(instance, pdfmarkdown.DefaultConfig())
+	markdown, err := converter.ConvertFile(filepath.Join("testdata", "issue-140-example.pdf"))
+	require.NoError(t, err)
+
+	require.Contains(t, markdown, "UPC code", "expected readable top-table header")
+	require.Contains(t, markdown, "Location code", "expected readable top-table header")
+	require.Contains(t, markdown, "|         | 0085648100305 | LILYSKMACENTRAL | CHOC ALMND SLTD 40% | 637      | $0.61       | $388.57", "expected readable first product row")
+	require.Contains(t, markdown, "|         | 0085648100380 | LILYSKMACENTRAL | SLTD CRMLZD CHC DRK | 688      | $0.61       | $419.68", "expected readable second product row")
+	require.Contains(t, markdown, "|         | 0085648100303 | LILYSKMACENTRAL | CHOC DARK 55% ALMND | 560      | $0.61       | $341.60", "expected readable third product row")
+	require.Contains(t, markdown, "|         | 0085648100300 | LILYSKMACENTRAL | BAR CHOC DARK 55%   | 415      | $0.61       | $253.15", "expected readable fourth product row")
+	require.Contains(t, markdown, "Associated claims", "expected readable section heading")
+	require.NotContains(t, markdown, "r e b m u n O P", "expected spaced-letter garble to be removed")
+}
 
 // TestIssue140_ImprovedTableDetection tests table detection with proper expectations
 // Based on visual analysis of the PDF
@@ -72,71 +97,30 @@ func TestIssue140_ImprovedTableDetection(t *testing.T) {
 
 	t.Logf("Detected %d tables", len(page.Tables))
 
-	// The PDF contains a purchase order table
-	// Due to rotation and word concatenation issues, we validate:
-	// 1. At least one table is detected
-	// 2. The table has multiple rows (one for each line item)
-	// 3. Key content is present (UPC codes, prices, product names)
+	require.NotEmpty(t, page.Tables, "expected recovered purchase order table")
 
-	if len(page.Tables) > 0 {
-		table := page.Tables[0]
-		t.Logf("Table dimensions: %d rows × %d columns", table.NumRows, table.NumCols)
+	table := page.Tables[0]
+	t.Logf("Table dimensions: %d rows × %d columns", table.NumRows, table.NumCols)
 
-		// Log table content for manual inspection
-		mdDoc := &pdfmarkdown.Document{
-			Pages: []pdfmarkdown.Page{*page},
-		}
-		markdown := mdDoc.ToMarkdown(config)
-		t.Logf("\n=== Table in Markdown ===\n%s", markdown)
-
-		// Expected content validation
-		// The table should contain purchase order information
-		// Note: Due to 270° rotation, text is backwards
-		expectedContent := []string{
-			"5030018465800", // Reversed UPC: 0085648100305 → 5030018465800
-			"0830018465800", // Reversed UPC: 0085648100380 → 0830018465800
-			"3030018465800", // Reversed UPC: 0085648100303 → 3030018465800
-			"0030018465800", // Reversed UPC: 0085648100300 → 0030018465800
-			"LARTNEC",       // CENTRAL backwards (part of LILYSKMACENTRAL)
-			"COHC",          // CHOC backwards
-			"736",           // Amount fragments
-			"886",           // Amount fragments
-		}
-
-		markdownLower := strings.ToLower(strings.ReplaceAll(markdown, " ", ""))
-		foundCount := 0
-		for _, content := range expectedContent {
-			if strings.Contains(markdownLower, strings.ToLower(content)) {
-				foundCount++
-			}
-		}
-
-		// Most expected content should be present (accounting for text reversal)
-		require.GreaterOrEqual(t, foundCount, 5,
-			"Most expected content should be present (found %d/%d)", foundCount, len(expectedContent))
-
-		// Validate table has reasonable structure
-		// Note: Due to rotation and concatenation issues, exact row/column counts may vary
-		// We validate that SOMETHING table-like is extracted
-		require.True(t, table.NumRows >= 1 || len(table.Cells) >= 1,
-			"Table should have at least 1 row or cell")
-
-		// The table should have data rows (4 purchase order items expected)
-		// With concatenation issues, they may appear as a single row or multiple rows
-		t.Logf("Table has %d rows (expected ~4 data rows + 1 header)", table.NumRows)
-	} else {
-		// If no tables detected, verify content is still extractable
-		mdDoc := &pdfmarkdown.Document{
-			Pages: []pdfmarkdown.Page{*page},
-		}
-		markdown := mdDoc.ToMarkdown(config)
-
-		// Even without table detection, key content should be present
-		require.Contains(t, markdown, "0085648100305", "Should extract UPC code")
-		require.Contains(t, markdown, "CHOC", "Should extract product description")
-
-		t.Logf("No tables detected, but content extracted successfully")
+	mdDoc := &pdfmarkdown.Document{
+		Pages: []pdfmarkdown.Page{*page},
 	}
+	markdown := mdDoc.ToMarkdown(config)
+	t.Logf("\n=== Table in Markdown ===\n%s", markdown)
+
+	require.Equal(t, 9, table.NumCols, "expected recovered 9-column purchase order table")
+	require.GreaterOrEqual(t, table.NumRows, 5, "expected header plus four product rows")
+	require.Contains(t, markdown, "UPC code")
+	require.Contains(t, markdown, "Location code")
+	require.Contains(t, markdown, "0085648100305")
+	require.Contains(t, markdown, "0085648100380")
+	require.Contains(t, markdown, "0085648100303")
+	require.Contains(t, markdown, "0085648100300")
+	require.Contains(t, markdown, "CHOC ALMND SLTD 40%")
+	require.Contains(t, markdown, "SLTD CRMLZD CHC DRK")
+	require.Contains(t, markdown, "CHOC DARK 55% ALMND")
+	require.Contains(t, markdown, "BAR CHOC DARK 55%")
+	require.NotContains(t, markdown, "r e b m u n O P", "expected readable normalized content")
 }
 
 // TestIssue140_ExpectedStructure documents the ideal table structure

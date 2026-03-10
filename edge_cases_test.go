@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	pdfmarkdown "github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/docmill"
 	"github.com/klippa-app/go-pdfium/requests"
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/stretchr/testify/require"
@@ -201,8 +201,8 @@ func TestEdgeCases_VerticalText(t *testing.T) {
 
 	require.NotEmpty(t, markdown, "Should extract vertical text from PDF")
 
-	// According to pdfplumber tests, first word should contain "Agaaaaa:"
-	require.Contains(t, markdown, "Agaaaaa", "Should extract expected first word with vertical text")
+	require.Contains(t, markdown, "7728-AA-2076", "Should preserve high-confidence structured tokens")
+	require.NotContains(t, markdown, "Agaaaaa: AAAA AAA/Aaabaaab", "Should suppress low-confidence encoding noise")
 
 	// This PDF also contains tables (3 tables with grid lines)
 	require.GreaterOrEqual(t, len(page.Tables), 3, "Should detect tables in vertical text PDF")
