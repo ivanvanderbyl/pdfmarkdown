@@ -11,7 +11,7 @@ import (
 	"github.com/klippa-app/go-pdfium/webassembly"
 	"github.com/urfave/cli/v3"
 
-	"github.com/ivanvanderbyl/pdfmarkdown"
+	pdfmarkdown "github.com/ivanvanderbyl/docmill"
 )
 
 func main() {

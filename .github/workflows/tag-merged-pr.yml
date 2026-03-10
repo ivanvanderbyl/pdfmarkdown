@@ -123,7 +123,7 @@ jobs:
           ## Installation
 
           \`\`\`bash
-          go get github.com/ivanvanderbyl/pdfmarkdown@${tag_name}
+          go get github.com/ivanvanderbyl/docmill@${tag_name}
           \`\`\`
 
           **Full Changelog**: https://github.com/${{ github.repository }}/commits/${tag_name}
